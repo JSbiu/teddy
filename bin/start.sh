@@ -10,6 +10,20 @@ case "$(uname)" in
 esac
 
 teddy_home=$(CDPATH= cd -- "$bin_absolute_path/.." && pwd)
+
+if [ -z "${TEDDY_ENV_FILE:-}" ]; then
+    release_parent=$(dirname "$teddy_home")
+    if [ "$(basename "$release_parent")" = "releases" ]; then
+        TEDDY_ENV_FILE="$(dirname "$release_parent")/shared/teddy.env"
+    fi
+fi
+
+if [ -n "${TEDDY_ENV_FILE:-}" ] && [ -f "$TEDDY_ENV_FILE" ]; then
+    set -a
+    . "$TEDDY_ENV_FILE"
+    set +a
+fi
+
 teddy_conf_dir=${TEDDY_CONF_DIR:-"$teddy_home/conf"}
 teddy_log_dir=${TEDDY_LOG_DIR:-"$teddy_home/logs"}
 teddy_run_dir=${TEDDY_RUN_DIR:-"$teddy_home/bin"}
@@ -17,6 +31,7 @@ teddy_config_file=${TEDDY_CONFIG_FILE:-"$teddy_conf_dir/teddy.properties"}
 spring_config_file=${TEDDY_SPRING_CONFIG_FILE:-"$teddy_conf_dir/application.properties"}
 
 export TEDDY_HOME="$teddy_home"
+export TEDDY_ENV_FILE="${TEDDY_ENV_FILE:-}"
 export TEDDY_CONF_DIR="$teddy_conf_dir"
 export TEDDY_LOG_DIR="$teddy_log_dir"
 export TEDDY_RUN_DIR="$teddy_run_dir"

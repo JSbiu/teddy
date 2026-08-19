@@ -10,6 +10,20 @@ case "$(uname)" in
 esac
 
 teddy_home=$(CDPATH= cd -- "$bin_absolute_path/.." && pwd)
+
+if [ -z "${TEDDY_ENV_FILE:-}" ]; then
+    release_parent=$(dirname "$teddy_home")
+    if [ "$(basename "$release_parent")" = "releases" ]; then
+        TEDDY_ENV_FILE="$(dirname "$release_parent")/shared/teddy.env"
+    fi
+fi
+
+if [ -n "${TEDDY_ENV_FILE:-}" ] && [ -f "$TEDDY_ENV_FILE" ]; then
+    set -a
+    . "$TEDDY_ENV_FILE"
+    set +a
+fi
+
 teddy_run_dir=${TEDDY_RUN_DIR:-"$teddy_home/bin"}
 pidfile="$teddy_run_dir/teddy.pid"
 

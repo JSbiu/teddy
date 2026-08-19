@@ -37,5 +37,9 @@ state.refresh.interval=5
 # Automatic restart scan interval in seconds.
 auto.restart.interval=180
 
+# Delay the first restart scan so YARN state refresh can complete after a
+# Teddy process upgrade. It should be longer than state.refresh.interval.
+auto.restart.initial-delay=30
+
 # Maximum automatic restart attempts.
 auto.restart.retries=3

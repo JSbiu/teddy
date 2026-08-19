@@ -35,6 +35,11 @@ public class RestartManager implements ApplicationRunner {
     public void run(ApplicationArguments args) throws Exception {
         logger.info("start restarter");
 
+        long restartInterval = Long.parseLong(TeddyConf.get("auto.restart.interval"));
+        long initialDelay = Long.parseLong(TeddyConf.get(
+                "auto.restart.initial-delay",
+                String.valueOf(restartInterval)));
+
         scheduledThreadPool.scheduleAtFixedRate(()->{
             try {
                 List<Job> jobs = jobService.findAllWithAppId();
@@ -55,6 +60,6 @@ public class RestartManager implements ApplicationRunner {
             }catch (Exception e){
                 logger.error(e.getMessage());
             }
-        },0,Long.parseLong(TeddyConf.get("auto.restart.interval")), TimeUnit.SECONDS);
+        },initialDelay,restartInterval, TimeUnit.SECONDS);
     }
 }

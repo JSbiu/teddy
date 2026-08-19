@@ -2,6 +2,7 @@
 /shelf/
 /.agents/
 /conf/application.properties
+/conf/teddy.env
 /conf/teddy.properties
 /target/
 /.idea/

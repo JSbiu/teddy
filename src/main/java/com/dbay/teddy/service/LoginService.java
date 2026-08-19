@@ -1,7 +1,6 @@
 package com.dbay.teddy.service;
 
 import com.dbay.teddy.manager.TokenManager;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
@@ -16,8 +15,6 @@ import java.net.URLDecoder;
 
 @Service
 public class LoginService {
-    @Autowired
-    private TokenManager tokenManager;
     private static final String USERNAME = "welove";
     private static final String PASSWORD = "welove520";
     private static final String TOKEN = "it is just a token";

@@ -1,7 +1,6 @@
 package com.dbay.teddy.service;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
 import com.dbay.teddy.entity.App;
 import com.dbay.teddy.utils.TeddyConf;
 import org.apache.commons.io.IOUtils;

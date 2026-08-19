@@ -2,10 +2,6 @@ package com.dbay.teddy.manager;
 
 import org.springframework.stereotype.Service;
 
-import javax.servlet.http.HttpServletRequest;
-import java.io.UnsupportedEncodingException;
-import java.net.URLDecoder;
-
 /**
  * @author AlexanderGuo
  */
@@ -15,17 +11,14 @@ import java.net.URLDecoder;
 public class TokenManager {
 
     public static String getToken(){
-        //TODO  get token from db
         return "it is just a token";
     }
 
     public static void saveToken(String token){
-        //TODO token save to db
-
+        // Token persistence is not implemented by the current fixed-token authentication.
     }
 
     public static String createToken(){
-        //TODO create token
         return "it is just a token";
     }
 

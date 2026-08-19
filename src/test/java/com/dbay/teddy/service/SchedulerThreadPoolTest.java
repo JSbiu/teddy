@@ -34,7 +34,6 @@ public class SchedulerThreadPoolTest {
 
     @Test
     public void test1(){
-        Integer a = 0;
         ScheduledExecutorService scheduledThreadPool = Executors.newScheduledThreadPool(1);
         scheduledThreadPool.scheduleWithFixedDelay(()->{
             System.out.println(LocalDateTime.now());
@@ -87,7 +86,7 @@ public class SchedulerThreadPoolTest {
         scheduledThreadPool.scheduleAtFixedRate(()->{
             try {
                 System.out.println("11111111");
-                int a = 1 / 0;
+                throw new ArithmeticException("/ by zero");
             }catch (Exception e){
                 e.printStackTrace();
             }

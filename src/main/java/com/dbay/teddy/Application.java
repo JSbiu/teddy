@@ -41,7 +41,6 @@ public class Application{
 
             TeddyConf.setProperties(properties);
         } else {
-            String localPathHome = "D:\\IdeaProjects\\GitHubProjects\\teddy\\conf\\teddy.properties";
             String localPathCompany = "D:\\ideaProject\\GitHubProject\\teddy\\conf\\teddy.properties";
             TeddyConf.setProperties(loadProperties(localPathCompany));
         }

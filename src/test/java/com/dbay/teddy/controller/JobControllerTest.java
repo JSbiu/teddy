@@ -32,7 +32,7 @@ public class JobControllerTest {
         // 查询内容类型
         mvc.perform(MockMvcRequestBuilders
                 .get("/job/list")
-                .contentType(MediaType.APPLICATION_JSON_UTF8)
+                .contentType(MediaType.APPLICATION_JSON)
                 .param("page","1")
                 .param("size","20")
                 .accept(MediaType.APPLICATION_JSON))
@@ -47,7 +47,7 @@ public class JobControllerTest {
         // 查询内容类型
         mvc.perform(MockMvcRequestBuilders
                 .get("/job/start")
-                .contentType(MediaType.APPLICATION_JSON_UTF8)
+                .contentType(MediaType.APPLICATION_JSON)
                 .param("app_id","1")
                 .param("size","20")
                 .accept(MediaType.APPLICATION_JSON))

@@ -7,8 +7,6 @@ import org.apache.commons.io.filefilter.IOFileFilter;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -26,17 +24,17 @@ public class ResourceManager {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-    @Autowired
-    private Environment env;
-
     public List<String> listJars(){
 
         File directory = new File(TeddyConf.get("lib.home"));
         IOFileFilter filter = FileFilterUtils.suffixFileFilter("jar");
 
         // filter *.jar
-        Collection<File> files = FileUtils.listFiles(directory,filter,null);
-        return files.stream().map(File::getAbsolutePath).collect(Collectors.toList());
+        Collection<?> files = FileUtils.listFiles(directory,filter,null);
+        return files.stream()
+                .map(File.class::cast)
+                .map(File::getAbsolutePath)
+                .collect(Collectors.toList());
 
     }
 

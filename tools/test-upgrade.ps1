@@ -44,6 +44,7 @@ $sharedRoot = Join-Path $serviceRoot 'shared'
 $sharedConf = Join-Path $sharedRoot 'conf'
 $stateRoot = Join-Path $serviceRoot 'state'
 $fakeBin = Join-Path $serviceRoot 'fake-bin'
+$legacyPid = $null
 
 try {
     New-Item -ItemType Directory -Path $releasesRoot,$sharedConf,(Join-Path $sharedRoot 'logs'),(Join-Path $sharedRoot 'run'),$stateRoot,$fakeBin -Force | Out-Null
@@ -105,6 +106,67 @@ try {
 
     Write-LfFile $environmentPath ($commonEnvironment + "TEST_FAIL_RELEASE=$($secondRelease.Name)")
 
+    $legacyBin = Join-Path $serviceRoot 'bin'
+    New-Item -ItemType Directory -Path $legacyBin -Force | Out-Null
+    Write-LfFile (Join-Path $serviceRoot 'teddy.jar') @('legacy test placeholder')
+    Write-LfFile (Join-Path $legacyBin 'start.sh') @(
+        '#!/bin/sh',
+        'exit 0'
+    )
+    Write-LfFile (Join-Path $legacyBin 'stop.sh') @(
+        '#!/bin/sh',
+        'if true; then',
+        '    exit 0'
+    )
+    $legacyPid = (& $shell.Source -c 'sleep 120 >/dev/null 2>&1 & echo $!').Trim()
+    if ($legacyPid -notmatch '^\d+$') {
+        throw "Expected a numeric legacy test PID, got $legacyPid"
+    }
+    Write-LfFile (Join-Path $legacyBin 'teddy.pid') @($legacyPid)
+    & $shell.Source -c "chmod +x '$posixServiceRoot/bin/start.sh' '$posixServiceRoot/bin/stop.sh'"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Legacy script chmod exited with code $LASTEXITCODE"
+    }
+
+    & $shell.Source -c "TEDDY_ALLOW_LEGACY_MIGRATION=1 '$firstReleasePosix/bin/upgrade.sh' --preflight"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Legacy upgrade preflight exited with code $LASTEXITCODE"
+    }
+
+    $legacyRollbackProbe = Join-Path $releasesRoot 'legacy-rollback-probe'
+    $legacyRollbackProbeBin = Join-Path $legacyRollbackProbe 'bin'
+    New-Item -ItemType Directory -Path $legacyRollbackProbeBin -Force | Out-Null
+    Copy-Item -LiteralPath (Join-Path $firstRelease.FullName 'bin\rollback.sh') -Destination (Join-Path $legacyRollbackProbeBin 'rollback.sh')
+    Write-LfFile (Join-Path $legacyRollbackProbeBin 'upgrade.sh') @(
+        '#!/bin/sh',
+        'printf ''%s\n'' "$1" > "$TEST_STATE_DIR/legacy-rollback-argument"'
+    )
+    $legacyRollbackProbePosix = Convert-ToPosixPath $legacyRollbackProbe
+    & $shell.Source -c "chmod +x '$legacyRollbackProbePosix/bin/rollback.sh' '$legacyRollbackProbePosix/bin/upgrade.sh'"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Legacy rollback probe chmod exited with code $LASTEXITCODE"
+    }
+    & $shell.Source -c "TEST_STATE_DIR='$posixStateRoot' '$legacyRollbackProbePosix/bin/rollback.sh'"
+    if ($LASTEXITCODE -ne 0) {
+        throw "Legacy rollback dispatch exited with code $LASTEXITCODE"
+    }
+    $legacyRollbackArgument = (Get-Content -LiteralPath (Join-Path $stateRoot 'legacy-rollback-argument') -Raw).Trim()
+    if ($legacyRollbackArgument -ne '--rollback-legacy') {
+        throw "Expected legacy rollback dispatch, got $legacyRollbackArgument"
+    }
+
+    Write-LfFile (Join-Path $legacyBin 'teddy.pid') @('invalid-pid')
+    & $shell.Source -c "TEDDY_ALLOW_LEGACY_MIGRATION=1 '$firstReleasePosix/bin/upgrade.sh' --preflight >/dev/null 2>&1"
+    if ($LASTEXITCODE -eq 0) {
+        throw 'Legacy preflight unexpectedly accepted an invalid PID.'
+    }
+
+    & $shell.Source -c "kill '$legacyPid' 2>/dev/null || true"
+    $legacyPid = $null
+    Remove-Item -LiteralPath (Join-Path $legacyBin 'start.sh'),(Join-Path $legacyBin 'stop.sh'),(Join-Path $legacyBin 'teddy.pid') -Force
+    Remove-Item -LiteralPath $legacyBin -Force
+    Remove-Item -LiteralPath (Join-Path $serviceRoot 'teddy.jar') -Force
+
     & $shell.Source "$firstReleasePosix/bin/upgrade.sh" --preflight
     if ($LASTEXITCODE -ne 0) {
         throw "Upgrade preflight exited with code $LASTEXITCODE"
@@ -123,6 +185,8 @@ try {
     if (-not $supportsNativeSymlinks) {
         [PSCustomObject]@{
             Preflight = 'passed'
+            LegacyPreflight = 'passed'
+            LegacyRollbackDispatch = 'passed'
             InitialActivation = 'skipped: native symlinks unavailable'
             AutomaticRollback = 'skipped: native symlinks unavailable'
             ManualRollback = 'skipped: native symlinks unavailable'
@@ -163,11 +227,16 @@ try {
 
     [PSCustomObject]@{
         Preflight = 'passed'
+        LegacyPreflight = 'passed'
+        LegacyRollbackDispatch = 'passed'
         InitialActivation = 'passed'
         AutomaticRollback = 'passed'
         ManualRollback = 'passed'
     }
 } finally {
+    if ($legacyPid) {
+        & $shell.Source -c "kill '$legacyPid' 2>/dev/null || true"
+    }
     if (Test-Path -LiteralPath $testRoot) {
         $resolvedTestRoot = (Resolve-Path -LiteralPath $testRoot).Path
         $expectedPrefix = $targetRoot.TrimEnd('\') + '\'

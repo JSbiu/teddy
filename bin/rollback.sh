@@ -17,16 +17,21 @@ service_root=${TEDDY_SERVICE_ROOT:-"$(dirname "$releases_root")"}
 service_root=$(CDPATH= cd -- "$service_root" && pwd)
 previous_link="$service_root/previous"
 
-if [ ! -L "$previous_link" ]; then
-    echo "错误：不存在可回滚的 previous 版本" >&2
-    exit 1
+if [ -L "$previous_link" ]; then
+    previous_release=$(readlink -f "$previous_link")
+    if [ -z "$previous_release" ] || [ ! -x "$previous_release/bin/upgrade.sh" ]; then
+        echo "错误：previous 版本无效或不支持自动回滚" >&2
+        exit 1
+    fi
+
+    export TEDDY_SERVICE_ROOT="$service_root"
+    exec "$previous_release/bin/upgrade.sh"
 fi
 
-previous_release=$(readlink -f "$previous_link")
-if [ -z "$previous_release" ] || [ ! -x "$previous_release/bin/upgrade.sh" ]; then
-    echo "错误：previous 版本无效或不支持自动回滚" >&2
-    exit 1
+if [ -f "$service_root/teddy.jar" ] && [ -x "$service_root/bin/start.sh" ]; then
+    export TEDDY_SERVICE_ROOT="$service_root"
+    exec "$current_release/bin/upgrade.sh" --rollback-legacy
 fi
 
-export TEDDY_SERVICE_ROOT="$service_root"
-exec "$previous_release/bin/upgrade.sh"
+echo "错误：不存在可回滚的 previous 版本或旧目录部署" >&2
+exit 1

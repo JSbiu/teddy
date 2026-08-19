@@ -4,14 +4,14 @@ set -u
 
 operation=${1:-}
 if [ "$#" -gt 1 ]; then
-    echo "用法：$0 [--preflight]" >&2
+    echo "用法：$0 [--preflight|--rollback-legacy]" >&2
     exit 1
 fi
 case "$operation" in
-    ''|--preflight)
+    ''|--preflight|--rollback-legacy)
         ;;
     *)
-        echo "用法：$0 [--preflight]" >&2
+        echo "用法：$0 [--preflight|--rollback-legacy]" >&2
         exit 1
         ;;
 esac
@@ -46,6 +46,12 @@ esac
 for required_file in teddy.jar bin/start.sh bin/stop.sh; do
     if [ ! -f "$new_release/$required_file" ]; then
         fail "发布目录缺少 $required_file"
+    fi
+done
+
+for required_script in bin/start.sh bin/stop.sh; do
+    if ! sh -n "$new_release/$required_script"; then
+        fail "发布目录脚本语法无效：$required_script"
     fi
 done
 
@@ -90,6 +96,13 @@ case "$health_timeout" in
         ;;
 esac
 
+stop_timeout=${TEDDY_STOP_TIMEOUT:-30}
+case "$stop_timeout" in
+    ''|*[!0-9]*)
+        fail "TEDDY_STOP_TIMEOUT 必须是非负整数"
+        ;;
+esac
+
 current_link="$service_root/current"
 previous_link="$service_root/previous"
 
@@ -115,6 +128,104 @@ remove_current_link() {
     fi
 }
 
+legacy_pidfile="$service_root/bin/teddy.pid"
+legacy_pid=
+
+legacy_process_is_teddy() {
+    candidate_pid=$1
+
+    if ! kill -0 "$candidate_pid" 2>/dev/null; then
+        return 1
+    fi
+
+    case "$(uname)" in
+        Linux)
+            candidate_cmdline="/proc/$candidate_pid/cmdline"
+            if [ ! -r "$candidate_cmdline" ]; then
+                return 1
+            fi
+            candidate_command=$(tr '\000' ' ' < "$candidate_cmdline")
+            case "$candidate_command" in
+                *"$service_root/"*teddy.jar*)
+                    ;;
+                *)
+                    return 1
+                    ;;
+            esac
+            ;;
+    esac
+
+    return 0
+}
+
+stop_legacy_teddy() {
+    if [ ! -f "$legacy_pidfile" ]; then
+        echo "错误：旧部署 PID 文件不存在：$legacy_pidfile" >&2
+        return 1
+    fi
+
+    stop_pid=$(cat "$legacy_pidfile")
+    case "$stop_pid" in
+        ''|*[!0-9]*)
+            echo "错误：旧部署 PID 文件内容无效：$legacy_pidfile" >&2
+            return 1
+            ;;
+    esac
+
+    if [ "$stop_pid" != "$legacy_pid" ]; then
+        echo "错误：旧部署 PID 在预检查后发生变化，拒绝停止" >&2
+        return 1
+    fi
+    if ! legacy_process_is_teddy "$stop_pid"; then
+        echo "错误：PID=$stop_pid 不再是 $service_root 下的 Teddy 进程" >&2
+        return 1
+    fi
+
+    printf '%s: 正在安全停止旧 Teddy %s ...\n' "$(hostname)" "$stop_pid"
+    if ! kill "$stop_pid"; then
+        echo "错误：无法向旧 Teddy PID=$stop_pid 发送 TERM" >&2
+        return 1
+    fi
+
+    elapsed=0
+    while kill -0 "$stop_pid" 2>/dev/null; do
+        if [ "$elapsed" -ge "$stop_timeout" ]; then
+            echo "错误：旧 Teddy 在 ${stop_timeout} 秒内未停止，保留 PID 文件供排查" >&2
+            return 1
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+
+    rm -f "$legacy_pidfile"
+    echo "旧 Teddy 已停止"
+    return 0
+}
+
+wait_for_legacy_teddy() {
+    elapsed=0
+    while [ "$elapsed" -le "$health_timeout" ]; do
+        if [ -f "$legacy_pidfile" ]; then
+            started_pid=$(cat "$legacy_pidfile")
+            case "$started_pid" in
+                ''|*[!0-9]*)
+                    ;;
+                *)
+                    if legacy_process_is_teddy "$started_pid"; then
+                        sleep 2
+                        if legacy_process_is_teddy "$started_pid"; then
+                            return 0
+                        fi
+                    fi
+                    ;;
+            esac
+        fi
+        sleep 1
+        elapsed=$((elapsed + 1))
+    done
+    return 1
+}
+
 wait_for_health() {
     elapsed=0
     while [ "$elapsed" -le "$health_timeout" ]; do
@@ -126,6 +237,60 @@ wait_for_health() {
     done
     return 1
 }
+
+if [ "$operation" = "--rollback-legacy" ]; then
+    if [ ! -L "$current_link" ]; then
+        fail "当前没有可回滚的版本链接"
+    fi
+    active_release=$(readlink -f "$current_link")
+    if [ -z "$active_release" ] || [ "$active_release" != "$new_release" ]; then
+        fail "必须从 current 指向的版本执行旧目录回滚"
+    fi
+    if [ ! -f "$service_root/teddy.jar" ] || [ ! -x "$service_root/bin/start.sh" ]; then
+        fail "保留的旧目录部署不完整，无法回滚"
+    fi
+    if ! sh -n "$service_root/bin/start.sh"; then
+        fail "旧部署 bin/start.sh 语法无效，无法回滚"
+    fi
+    if [ -e "$legacy_pidfile" ]; then
+        fail "旧部署 PID 文件仍然存在，请先人工确认：$legacy_pidfile"
+    fi
+
+    "$new_release/bin/stop.sh" || fail "当前 Teddy 停止失败，未执行旧目录回滚"
+    if ! remove_current_link; then
+        "$new_release/bin/start.sh" >/dev/null 2>&1 || true
+        fail "current 链接移除失败，已尝试恢复当前版本"
+    fi
+
+    legacy_start_result=failed
+    if "$service_root/bin/start.sh" && wait_for_legacy_teddy; then
+        legacy_start_result=started
+    fi
+    if [ "$legacy_start_result" = "started" ]; then
+        echo "已回滚到旧目录部署：$service_root"
+        exit 0
+    fi
+
+    echo "旧目录版本启动失败，开始恢复 current 版本" >&2
+    if [ -f "$legacy_pidfile" ]; then
+        rollback_legacy_pid=$(cat "$legacy_pidfile")
+        case "$rollback_legacy_pid" in
+            ''|*[!0-9]*)
+                ;;
+            *)
+                if legacy_process_is_teddy "$rollback_legacy_pid"; then
+                    legacy_pid=$rollback_legacy_pid
+                    stop_legacy_teddy || fail "旧目录进程状态异常，拒绝同时启动 current 版本"
+                fi
+                ;;
+        esac
+    fi
+
+    switch_link "$new_release" "$current_link" || fail "无法恢复 current 链接"
+    "$new_release/bin/start.sh" || fail "current 版本重新启动失败"
+    wait_for_health || fail "current 版本已重启但健康检查失败"
+    fail "旧目录回滚失败，已恢复 current 版本"
+fi
 
 old_mode=none
 old_release=
@@ -140,12 +305,35 @@ if [ -L "$current_link" ]; then
         exit 0
     fi
     old_mode=release
-elif [ -x "$service_root/bin/stop.sh" ]; then
+    for old_script in bin/start.sh bin/stop.sh; do
+        if [ ! -x "$old_release/$old_script" ]; then
+            fail "当前版本缺少可执行脚本：$old_script"
+        fi
+        if ! sh -n "$old_release/$old_script"; then
+            fail "当前版本脚本语法无效：$old_script"
+        fi
+    done
+elif [ -f "$service_root/teddy.jar" ] || [ -d "$service_root/bin" ]; then
     if [ "${TEDDY_ALLOW_LEGACY_MIGRATION:-0}" != "1" ]; then
         fail "检测到旧目录部署；首次迁移请确认 PID 后设置 TEDDY_ALLOW_LEGACY_MIGRATION=1"
     fi
-    if [ ! -f "$service_root/bin/teddy.pid" ]; then
+    if [ ! -x "$service_root/bin/start.sh" ]; then
+        fail "旧部署缺少可执行的 bin/start.sh，无法保证回滚"
+    fi
+    if ! sh -n "$service_root/bin/start.sh"; then
+        fail "旧部署 bin/start.sh 语法无效，无法保证回滚"
+    fi
+    if [ ! -f "$legacy_pidfile" ]; then
         fail "旧部署缺少 bin/teddy.pid，请人工确认进程后再迁移"
+    fi
+    legacy_pid=$(cat "$legacy_pidfile")
+    case "$legacy_pid" in
+        ''|*[!0-9]*)
+            fail "旧部署 bin/teddy.pid 内容无效"
+            ;;
+    esac
+    if ! legacy_process_is_teddy "$legacy_pid"; then
+        fail "旧部署 PID=$legacy_pid 不是存活的 Teddy 进程，拒绝迁移"
     fi
     old_release="$service_root"
     old_mode=legacy
@@ -160,9 +348,14 @@ if [ "$operation" = "--preflight" ]; then
     exit 0
 fi
 
-if [ "$old_mode" != "none" ]; then
-    "$old_release/bin/stop.sh" || fail "旧 Teddy 停止失败，未切换版本"
-fi
+case "$old_mode" in
+    release)
+        "$old_release/bin/stop.sh" || fail "旧 Teddy 停止失败，未切换版本"
+        ;;
+    legacy)
+        stop_legacy_teddy || fail "旧 Teddy 停止失败，未切换版本"
+        ;;
+esac
 
 switch_link "$new_release" "$current_link" || fail "current 链接切换失败"
 

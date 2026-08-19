@@ -56,7 +56,14 @@ MySQL 配置也可以不写入文件，改用 `TEDDY_DATASOURCE_URL`、
 
 发布包内部仍使用固定名称 `teddy.jar`，因此现有启停脚本不需要感知版本号。
 服务器接收文件后应先执行 `sha256sum -c --ignore-missing SHA256SUMS`，
-校验选中的发布包通过后再解压。
+校验选中的发布包通过后再解压。旧版 `sha256sum` 不支持
+`--ignore-missing` 时，可以先按文件名筛选校验清单：
+
+```sh
+grep -F 'teddy-1.1.0-SNAPSHOT-release.tar.gz' SHA256SUMS \
+  | tr -d '\r' \
+  | sha256sum -c -
+```
 
 ## 更新目标
 

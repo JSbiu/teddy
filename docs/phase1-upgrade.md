@@ -34,8 +34,10 @@ Teddy 管理页面允许短暂维护窗口，不承诺 HTTP 零中断。
 2. 在服务器上执行 `sha256sum -c --ignore-missing SHA256SUMS`。
 3. 创建 `releases/` 和 `shared/{conf,logs,run}` 目录。
 4. 参考发布包中的三个 `.example` 文件准备共享配置，并将配置权限限制为 `600`。
-5. 轮换仓库历史中出现过的数据库和邮箱凭据，再把新凭据写入共享配置。
-6. 确认旧进程 PID 与 `bin/teddy.pid` 一致。
+5. 仓库历史中出现过的数据库或邮箱凭据应尽快轮换；暂时无法轮换时，必须记录为
+   安全风险并限制共享配置权限，不应把凭据复制到命令输出或发布包。
+6. 确认旧进程 PID 与 `bin/teddy.pid` 一致。首次迁移由新版本脚本验证该 PID 的
+   `/proc` 命令行、发送 `TERM` 并等待退出，不调用旧部署的 `stop.sh`。
 7. 保存更新前 `/job/list` 结果或任务监控页中的全部 ApplicationId。
 
 首次迁移时，旧部署仍位于服务根目录。将新包解压到 `releases/` 后执行：
@@ -67,14 +69,16 @@ TEDDY_ALLOW_LEGACY_MIGRATION=1 \
 
 ## 回滚
 
-升级成功后，原版本记录在 `previous` 链接。回滚命令为：
+版本化部署之间升级成功后，原版本记录在 `previous` 链接。首次从旧目录迁移时尚无
+版本化的 `previous`；只要服务根目录中的旧 JAR、脚本和配置仍然保留，同一个回滚
+命令会安全停止当前版本并恢复旧目录部署：
 
 ```sh
 /usr/local/service/teddy/current/bin/rollback.sh
 ```
 
-旧版本至少保留到新版本完成一个完整的状态刷新和自动重启扫描周期。不要在验证完成前
-删除 `previous` 指向的目录。
+旧版本至少保留到新版本完成一个完整的状态刷新和自动重启扫描周期。首次迁移不要在
+验证完成前删除服务根目录中的旧部署；后续更新不要删除 `previous` 指向的目录。
 
 ## 验收
 
@@ -82,4 +86,5 @@ TEDDY_ALLOW_LEGACY_MIGRATION=1 \
 - 更新前后的 Spark ApplicationId 集合完全一致。
 - YARN 上的 application 启动时间没有变化。
 - Teddy 状态刷新恢复，且没有重复告警或重复提交任务。
-- `current` 指向新版本，`previous` 指向可启动的旧版本。
+- `current` 指向新版本；首次迁移的旧目录仍可启动，后续更新的 `previous` 指向可
+  启动的旧版本。

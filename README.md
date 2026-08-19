@@ -36,6 +36,24 @@ chmod 600 /usr/local/service/teddy-shared/conf/*.properties
 MySQL 配置也可以不写入文件，改用 `TEDDY_DATASOURCE_URL`、
 `TEDDY_DATASOURCE_USERNAME` 和 `TEDDY_DATASOURCE_PASSWORD` 环境变量。
 
+## 构建发布包
+
+在 Windows PowerShell 中运行：
+
+```powershell
+.\tools\build-release.ps1
+```
+
+脚本执行干净构建，并在 `target/` 下生成：
+
+- 带版本号的 thin-JAR。
+- 带版本号的 ZIP 和 tar.gz 发布包。
+- `SHA256SUMS` 校验清单。
+
+发布包内部仍使用固定名称 `teddy.jar`，因此现有启停脚本不需要感知版本号。
+服务器接收文件后应先执行 `sha256sum -c --ignore-missing SHA256SUMS`，
+校验选中的发布包通过后再解压。
+
 ## 更新目标
 
 Teddy 是 Spark/YARN 的管理端。第一阶段更新允许 Teddy 管理页面短暂停止，

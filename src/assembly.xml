@@ -12,6 +12,7 @@
             <useProjectArtifact>false</useProjectArtifact>
             <outputDirectory>lib</outputDirectory>
             <unpack>false</unpack>
+            <scope>runtime</scope>
         </dependencySet>
     </dependencySets>
 
@@ -25,12 +26,13 @@
             <directory>conf</directory>
             <outputDirectory>conf</outputDirectory>
         </fileSet>
-        <fileSet>
-            <directory>${project.build.directory}</directory>
-            <outputDirectory></outputDirectory>
-            <includes>
-                <include>*.jar</include>
-            </includes>
-        </fileSet>
     </fileSets>
+
+    <files>
+        <file>
+            <source>${project.build.directory}/${project.build.finalName}.jar</source>
+            <outputDirectory></outputDirectory>
+            <destName>teddy.jar</destName>
+        </file>
+    </files>
 </assembly>

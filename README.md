@@ -1,6 +1,14 @@
 # teddy
 哮天犬，小型犬
 
+## 版本管理
+
+- Maven `pom.xml` 是版本号的唯一来源。
+- 开发中的版本使用 `MAJOR.MINOR.PATCH-SNAPSHOT`。
+- 可部署版本通过 `vMAJOR.MINOR.PATCH` Git 标签标记。
+- 每个功能或修复使用独立的 Conventional Commit，并在验证后推送。
+- 第一阶段无痛更新完成并通过升级、回滚演练后发布 `v1.1.0`。
+
 ## 运行配置
 
 生产配置必须放在发布包之外，仓库和构建产物只保留无敏感值的示例文件：

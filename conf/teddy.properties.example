@@ -1,0 +1,41 @@
+###########
+# Runtime configuration
+###########
+
+# Spark installation used by SparkLauncher.
+spark.home=/path/to/spark/
+
+# Persistent directory containing uploaded Spark application JARs. Keep this
+# outside versioned Teddy release directories so upgrades do not move uploads.
+lib.home=/var/lib/teddy/jars/
+
+# Combined stdout/stderr log written by submitted Spark processes.
+log.file=/var/log/teddy/spark.log
+
+# YARN ResourceManager HTTP endpoints, separated by commas.
+yarn.cluster=rm1.example.internal:8088,rm2.example.internal:8088
+
+# Browser-facing YARN proxy prefix used for ApplicationId links.
+yarn.proxy.base-url=https://yarn-gateway.example.com/gateway/emr/yarn/proxy
+
+# Mail settings. Leave blank when mail alerts are not used.
+mail.host=
+mail.port=
+mail.from=
+mail.passwd=
+
+###########
+# Scheduling intervals
+###########
+
+# Alert interval in seconds.
+alert.interval=60
+
+# YARN state refresh interval in seconds.
+state.refresh.interval=5
+
+# Automatic restart scan interval in seconds.
+auto.restart.interval=180
+
+# Maximum automatic restart attempts.
+auto.restart.retries=3

@@ -1,6 +1,8 @@
 # Default ignored files
 /shelf/
 /.agents/
+/conf/application.properties
+/conf/teddy.properties
 /target/
 /.idea/
 target/

@@ -1,13 +1,25 @@
 $(function() {
+    var yarnProxyBaseUrl = "";
+
     var req = function () {
         $.post("/job/list",{},function(response){
             taskListParser(response);
         });
     };
 
-    req();
-
-    starter=setInterval(req, 1000);
+    $.ajax({
+        url: "/system/client-config",
+        type: "GET",
+        success: function(response) {
+            if(response.state === "success" && response.data){
+                yarnProxyBaseUrl = response.data.yarnProxyBaseUrl || "";
+            }
+        },
+        complete: function() {
+            req();
+            setInterval(req, 1000);
+        }
+    });
 
     $('#c1_body tr td button.delete').live("click",function(){
         var data = new FormData();
@@ -93,7 +105,7 @@ $(function() {
                 html += "<tr id='"+data[i].id+"' "+taskStyle(data[i].state)+">";
                 html += "<td>"+data[i].name+"</td>";
                 html += "<td><button type='button' class='btn btn-default command'>查看配置</button></td>";
-                html += "<td><a href='https://ClusterIp:Port/gateway/emr/yarn/proxy/"+data[i].appId+"' target='_blank'>"+data[i].appId+"</a></td>";
+                html += "<td>"+applicationLink(data[i].appId)+"</td>";
                 html += "<td>"+data[i].totalRunningTime+"</td>";
                 html += "<td>"+data[i].yarnQueue+"</td>";
                 html += "<td>"+data[i].state+"</td>";
@@ -108,6 +120,16 @@ $(function() {
         }else{
             alert(response.data);
         }
+    }
+
+    function applicationLink(appId){
+        if(!appId){
+            return "";
+        }
+        if(!yarnProxyBaseUrl){
+            return appId;
+        }
+        return "<a href='"+yarnProxyBaseUrl+"/"+encodeURIComponent(appId)+"' target='_blank'>"+appId+"</a>";
     }
 
     function taskStyle(state){

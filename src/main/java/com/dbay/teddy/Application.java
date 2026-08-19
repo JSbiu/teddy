@@ -23,6 +23,8 @@ import java.util.Properties;
 @MapperScan("com.dbay.teddy.mapper")
 public class Application{
     private static final String PATH = "p";
+    private static final String CONFIG_FILE_ENV = "TEDDY_CONFIG_FILE";
+    private static final String DEFAULT_CONFIG_FILE = "conf/teddy.properties";
 
     public static void main(String[] args) throws ParseException, IOException {
 
@@ -33,19 +35,23 @@ public class Application{
         CommandLineParser parser = new DefaultParser();
         CommandLine cmd = parser.parse(options, args);
 
-        if (cmd.hasOption(PATH)) {
-            String path = cmd.getOptionValue(PATH);
-
-            // 加载 Properties
-            Properties properties = loadProperties(path);
-
-            TeddyConf.setProperties(properties);
-        } else {
-            String localPathCompany = "D:\\ideaProject\\GitHubProject\\teddy\\conf\\teddy.properties";
-            TeddyConf.setProperties(loadProperties(localPathCompany));
-        }
+        String path = resolveConfigPath(cmd);
+        TeddyConf.setProperties(loadProperties(path));
 
         SpringApplication.run(Application.class, args);
+    }
+
+    private static String resolveConfigPath(CommandLine cmd) {
+        if (cmd.hasOption(PATH)) {
+            return cmd.getOptionValue(PATH);
+        }
+
+        String environmentPath = System.getenv(CONFIG_FILE_ENV);
+        if (environmentPath != null && !environmentPath.trim().isEmpty()) {
+            return environmentPath;
+        }
+
+        return DEFAULT_CONFIG_FILE;
     }
 
     private static Properties loadProperties(String path) throws IOException {

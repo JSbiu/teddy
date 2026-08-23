@@ -1,61 +1,67 @@
 package com.dbay.teddy.controller;
 
-import com.dbay.teddy.Application;
-import org.junit.Before;
+import com.dbay.teddy.entity.Job;
+import com.dbay.teddy.service.JobService;
+import com.dbay.teddy.utils.Response;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.springframework.test.context.web.WebAppConfiguration;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.multipart.MultipartFile;
 
-@org.junit.Ignore("Legacy context test; replace with isolated controller tests")
-@RunWith(SpringJUnit4ClassRunner.class)
-@SpringBootTest(classes = Application.class)
-@WebAppConfiguration
+import java.lang.reflect.Method;
+
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 public class JobControllerTest {
-    @Autowired
-    private WebApplicationContext context;
-    private MockMvc mvc;
 
-    @Before
-    public void setUp() throws Exception {
-        mvc = MockMvcBuilders.webAppContextSetup(context).build();
+    @Test
+    public void mutationEndpointsAcceptOnlyPost() throws Exception {
+        assertPostOnly(JobController.class.getMethod("delete", Integer.class));
+        assertPostOnly(JobController.class.getMethod("stop", Integer.class));
+        assertPostOnly(JobController.class.getMethod("restart", Integer.class));
+        assertPostOnly(ResourceController.class.getMethod("upload", MultipartFile.class));
+        assertPostOnly(ResourceController.class.getMethod("delete", String.class));
     }
 
     @Test
-    public void list() throws Exception {
-        // 查询内容类型
-        mvc.perform(MockMvcRequestBuilders
-                .get("/job/list")
-                .contentType(MediaType.APPLICATION_JSON)
-                .param("page","1")
-                .param("size","20")
-                .accept(MediaType.APPLICATION_JSON))
-                .andDo(mvcResult -> {
-                    System.out.println(mvcResult.getResponse().getContentAsString());
-                });
-    }
+    public void unknownTasksCannotBeDeletedOrRestarted() {
+        JobService jobService = mock(JobService.class);
+        when(jobService.findOne(99)).thenReturn(null);
+        JobController controller = new JobController(jobService);
 
+        Response delete = controller.delete(99);
+        Response restart = controller.restart(99);
+
+        assertEquals("error", delete.getState());
+        assertEquals("error", restart.getState());
+        verify(jobService, never()).delete(anyInt());
+        verify(jobService, never()).restart(any(Job.class));
+    }
 
     @Test
-    public void start() throws Exception {
-        // 查询内容类型
-        mvc.perform(MockMvcRequestBuilders
-                .get("/job/start")
-                .contentType(MediaType.APPLICATION_JSON)
-                .param("app_id","1")
-                .param("size","20")
-                .accept(MediaType.APPLICATION_JSON))
-                .andDo(mvcResult -> {
-                    System.out.println(mvcResult.getResponse().getContentAsString());
-                });
+    public void runningTasksCannotBeDeletedOrRestarted() {
+        JobService jobService = mock(JobService.class);
+        Job running = mock(Job.class);
+        when(running.getState()).thenReturn("RUNNING");
+        when(jobService.findOne(7)).thenReturn(running);
+        JobController controller = new JobController(jobService);
+
+        assertEquals("error", controller.delete(7).getState());
+        assertEquals("error", controller.restart(7).getState());
+
+        verify(jobService, never()).delete(anyInt());
+        verify(jobService, never()).restart(any(Job.class));
     }
 
-
+    private void assertPostOnly(Method method) {
+        RequestMapping mapping = method.getAnnotation(RequestMapping.class);
+        assertArrayEquals(new RequestMethod[]{RequestMethod.POST}, mapping.method());
+    }
 }

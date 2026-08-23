@@ -21,6 +21,31 @@ fail() {
     exit 1
 }
 
+get_property() {
+    awk -v wanted="$2" '
+        {
+            pos = index($0, "=")
+            if (pos == 0) next
+            key = substr($0, 1, pos - 1)
+            gsub(/^[ \t]+|[ \t]+$/, "", key)
+            if (key == wanted) {
+                value = substr($0, pos + 1)
+                sub(/^[ \t]+/, "", value)
+                sub(/[ \t\r]+$/, "", value)
+                print value
+                exit
+            }
+        }
+    ' "$1"
+}
+
+require_property() {
+    property_value=$(get_property "$1" "$2")
+    if [ -z "$property_value" ]; then
+        fail "$1 is missing required property $2"
+    fi
+}
+
 case "$(uname)" in
     Linux)
         bin_absolute_path=$(readlink -f "$(dirname "$0")")
@@ -76,6 +101,67 @@ spring_config_file=${TEDDY_SPRING_CONFIG_FILE:-"$teddy_conf_dir/application.prop
 if [ ! -f "$teddy_config_file" ]; then
     fail "找不到 Teddy 配置文件 $teddy_config_file"
 fi
+
+for required_key in \
+    spark.home lib.home log.file yarn.cluster alert.interval \
+    state.refresh.interval auto.restart.interval auto.restart.retries \
+    auth.username auth.password-hash auth.session.ttl-seconds auth.cookie.secure; do
+    require_property "$teddy_config_file" "$required_key"
+done
+
+auth_hash=$(get_property "$teddy_config_file" auth.password-hash)
+auth_hash_prefix=$(printf '%s' "$auth_hash" | awk -F '$' '{print $1}')
+auth_hash_iterations=$(printf '%s' "$auth_hash" | awk -F '$' '{print $2}')
+auth_hash_salt=$(printf '%s' "$auth_hash" | awk -F '$' '{print $3}')
+auth_hash_value=$(printf '%s' "$auth_hash" | awk -F '$' '{print $4}')
+if [ "$auth_hash_prefix" != "pbkdf2-sha256" ] ||
+   [ -z "$auth_hash_salt" ] || [ -z "$auth_hash_value" ]; then
+    fail "auth.password-hash must use pbkdf2-sha256 format"
+fi
+case "$auth_hash_iterations" in
+    ''|*[!0-9]*)
+        fail "auth.password-hash iterations must be an integer"
+        ;;
+esac
+if [ "$auth_hash_iterations" -lt 10000 ] || [ "$auth_hash_iterations" -gt 1000000 ]; then
+    fail "auth.password-hash iterations must be between 10000 and 1000000"
+fi
+
+auth_session_ttl=$(get_property "$teddy_config_file" auth.session.ttl-seconds)
+case "$auth_session_ttl" in
+    ''|*[!0-9]*)
+        fail "auth.session.ttl-seconds must be an integer"
+        ;;
+esac
+if [ "$auth_session_ttl" -lt 60 ] || [ "$auth_session_ttl" -gt 604800 ]; then
+    fail "auth.session.ttl-seconds must be between 60 and 604800"
+fi
+
+auth_cookie_secure=$(get_property "$teddy_config_file" auth.cookie.secure)
+case "$auth_cookie_secure" in
+    true|false)
+        ;;
+    *)
+        fail "auth.cookie.secure must be true or false"
+        ;;
+esac
+
+lib_home=$(get_property "$teddy_config_file" lib.home)
+case "$lib_home" in
+    /*)
+        ;;
+    *)
+        fail "lib.home must be an absolute path"
+        ;;
+esac
+if [ ! -d "$lib_home" ] || [ ! -w "$lib_home" ]; then
+    fail "lib.home must be an existing writable directory"
+fi
+case "$lib_home/" in
+    "$service_root/releases/"*)
+        fail "lib.home must not be inside the versioned releases directory"
+        ;;
+esac
 if [ ! -f "$spring_config_file" ] && {
     [ -z "${TEDDY_DATASOURCE_URL:-}" ] ||
     [ -z "${TEDDY_DATASOURCE_USERNAME:-}" ] ||

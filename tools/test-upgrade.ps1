@@ -44,10 +44,11 @@ $sharedRoot = Join-Path $serviceRoot 'shared'
 $sharedConf = Join-Path $sharedRoot 'conf'
 $stateRoot = Join-Path $serviceRoot 'state'
 $fakeBin = Join-Path $serviceRoot 'fake-bin'
+$testLibHome = Join-Path $sharedRoot 'jars'
 $legacyPid = $null
 
 try {
-    New-Item -ItemType Directory -Path $releasesRoot,$sharedConf,(Join-Path $sharedRoot 'logs'),(Join-Path $sharedRoot 'run'),$stateRoot,$fakeBin -Force | Out-Null
+    New-Item -ItemType Directory -Path $releasesRoot,$sharedConf,(Join-Path $sharedRoot 'logs'),(Join-Path $sharedRoot 'run'),$testLibHome,$stateRoot,$fakeBin -Force | Out-Null
     Expand-Archive -LiteralPath $releaseArchives[0].FullName -DestinationPath $releasesRoot
 
     $firstRelease = Get-ChildItem -LiteralPath $releasesRoot -Directory | Select-Object -First 1
@@ -63,6 +64,18 @@ try {
     $posixFakeBin = Convert-ToPosixPath $fakeBin
     $firstReleasePosix = Convert-ToPosixPath $firstRelease.FullName
     $secondReleasePosix = Convert-ToPosixPath $secondRelease.FullName
+    $posixLibHome = Convert-ToPosixPath $testLibHome
+    $teddyConfigPath = Join-Path $sharedConf 'teddy.properties'
+    $teddyConfigLines = Get-Content -LiteralPath $teddyConfigPath | ForEach-Object {
+        if ($_ -match '^lib\.home=') {
+            "lib.home=$posixLibHome/"
+        } elseif ($_ -match '^auth\.password-hash=') {
+            'auth.password-hash=pbkdf2-sha256$10000$MDEyMzQ1Njc4OWFiY2RlZg==$MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY='
+        } else {
+            $_
+        }
+    }
+    Write-LfFile $teddyConfigPath $teddyConfigLines
 
     $fakeStart = @(
         '#!/bin/sh',

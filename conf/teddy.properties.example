@@ -43,3 +43,19 @@ auto.restart.initial-delay=30
 
 # Maximum automatic restart attempts.
 auto.restart.retries=3
+
+###########
+# Authentication
+###########
+
+# Generate this value with tools/New-TeddyPasswordHash.ps1. Never store a
+# plaintext password in this file.
+auth.username=teddy
+auth.password-hash=
+
+# Server-side session lifetime in seconds. Sessions are invalidated when Teddy
+# restarts.
+auth.session.ttl-seconds=28800
+
+# Set to true only when Teddy is served over HTTPS.
+auth.cookie.secure=false

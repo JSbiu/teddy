@@ -8,7 +8,7 @@ if (-not $maven) {
 
 Push-Location $projectRoot
 try {
-    & $maven.Source -DskipTests clean package
+    & $maven.Source -DskipTests=false clean package
     if ($LASTEXITCODE -ne 0) {
         throw "Maven exited with code $LASTEXITCODE"
     }
@@ -44,6 +44,9 @@ try {
         $checksumLines,
         [System.Text.UTF8Encoding]::new($false)
     )
+
+    $artifactTest = Join-Path $PSScriptRoot 'Test-ReleaseArtifact.ps1'
+    & $artifactTest -TargetDirectory $targetDirectory
 
     $artifacts | Select-Object Name, Length, FullName
     Get-Item -LiteralPath $checksumPath | Select-Object Name, Length, FullName

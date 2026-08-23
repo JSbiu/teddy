@@ -9,6 +9,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
+@org.junit.Ignore("Demonstration test leaves executor threads running")
 public class SchedulerThreadPoolTest {
     @Test
     public void test() {

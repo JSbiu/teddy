@@ -1,24 +1,34 @@
 # Changelog
 
-本项目遵循 Semantic Versioning，正式版本使用 `vMAJOR.MINOR.PATCH` Git 标签。
+本项目遵循 Semantic Versioning，正式版本使用 vMAJOR.MINOR.PATCH Git 标签。
 
-## 1.1.0 - Unreleased
+## 1.2.0 - Unreleased
 
 ### Added
 
-- 支持从共享目录加载 Teddy 与 Spring Boot 运行配置。
-- 支持通过环境变量提供 MySQL 数据源配置。
-- 增加浏览器端 YARN 代理地址配置接口。
-- 增加安全的 PID 检查和有超时的停止流程。
-- 增加版本化发布包与 SHA256 校验清单生成脚本。
-- 增加数据库健康检查、版本切换和自动回滚脚本。
+- 增加后端会话鉴权、PBKDF2-SHA256 密码哈希生成工具和安全 Cookie。
+- 增加发布包结构、校验和、脚本权限、示例配置和 manifest 的自动自检。
+- 增加升级前后只读验收快照及 ApplicationId 集合对比脚本。
+- 增加 YARN 状态策略、ResourceManager 故障转移和隔离单元测试。
 
 ### Changed
 
-- 发布包只携带无敏感值的配置示例。
-- Linux 启停脚本固定使用 LF 行尾。
-- 发布产物统一为 thin-JAR，运行依赖仅保留实际使用的 Spark Launcher 和应用依赖。
-- Maven 产物使用固定构建时间戳，连续构建可得到相同 SHA256。
-- 自动重启扫描在进程启动后延迟执行，先让 YARN 状态刷新完成。
-- 首次迁移由新版本脚本校验并停止旧 Teddy PID，不再依赖旧部署的停止脚本，并支持
-  从首个新版本回滚到保留的旧目录部署。
+- Maven 默认执行测试，发布构建不再跳过测试。
+- YARN 每个任务每轮只获取一次有超时的应用快照。
+- 自动重启和告警只处理明确的 FAILED 终态。
+- Spark 提交等待 ApplicationId 和 YARN kill 都有可配置上限。
+
+### Fixed
+
+- JAR 上传、删除和 Spark 提交都限制在 lib.home 的直属普通 .jar 文件。
+- ResourceManager 暂时不可达时保留上次状态，不再写入伪失败状态。
+- 过渡态、成功完成和人工 KILL 不再触发自动重启或故障告警。
+- Spark 已启动但数据库落库失败时尝试清理该应用，避免未跟踪任务。
+- 自动重启失败会基于原任务正确扣减剩余次数。
+
+### Verification
+
+- 全量 Maven 测试 26 项通过，4 项历史环境耦合测试明确跳过。
+- 发布包自检通过。
+- 隔离升级预检与旧版迁移分派通过；Windows 不支持原生符号链接时回滚分支按设计跳过。
+- 验收脚本的快照、相同集合对比和 ApplicationId 变更检测均通过，未连接生产。

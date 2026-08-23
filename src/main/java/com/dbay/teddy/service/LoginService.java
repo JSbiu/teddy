@@ -58,11 +58,6 @@ public class LoginService {
         }
         return null;
     }
-    public String getCookieValue(HttpServletRequest request, String cookieName, boolean ignoredDecoder) {
-        return getCookieValue(request, cookieName);
-    }
-
-
     public int getSessionMaxAgeSeconds() {
         return Math.toIntExact(getSessionTtlSeconds());
     }

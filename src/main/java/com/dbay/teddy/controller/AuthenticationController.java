@@ -24,19 +24,19 @@ public class AuthenticationController {
     @RequestMapping(value = "login", method = RequestMethod.POST)
     public Response login(HttpServletRequest request, HttpServletResponse response) {
         if (!loginService.isConfigured()) {
-            logger.error("����������������");
+            logger.error("Authentication is not configured");
             return Response.ERROR("authentication is not configured");
         }
         String userName = request.getParameter("userName");
         String password = request.getParameter("password");
         if (!loginService.checkPassword(userName, password)) {
-            logger.warn("����");
+            logger.warn("Login failed");
             return Response.ERROR("401");
         }
 
         String token = loginService.createToken();
         writeSessionCookie(response, token, loginService.getSessionMaxAgeSeconds());
-        logger.info("����");
+        logger.info("Login succeeded");
         return Response.SUCCESS("success");
     }
 

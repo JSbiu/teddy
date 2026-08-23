@@ -15,10 +15,10 @@ $(function () {
                     window.location.href = './page/taskm/monitor.html';
                     return;
                 }
-                $('#login-error').text('@@@@@@@@');
+                $('#login-error').text('用户名或密码错误');
             },
             error: function () {
-                $('#login-error').text('���������');
+                $('#login-error').text('登录请求失败');
             }
         });
     });

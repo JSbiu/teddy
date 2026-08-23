@@ -5,6 +5,10 @@
 # Spark installation used by SparkLauncher.
 spark.home=/path/to/spark/
 
+# Maximum wait for SparkLauncher to return an ApplicationId. The built-in
+# default is 120 seconds when this setting is absent during an upgrade.
+spark.submit.app-id-timeout-seconds=120
+
 # Persistent directory containing uploaded Spark application JARs. Keep this
 # outside versioned Teddy release directories so upgrades do not move uploads.
 lib.home=/var/lib/teddy/jars/
@@ -14,6 +18,17 @@ log.file=/var/log/teddy/spark.log
 
 # YARN ResourceManager HTTP endpoints, separated by commas.
 yarn.cluster=rm1.example.internal:8088,rm2.example.internal:8088
+
+# Bounded ResourceManager REST timeouts. Existing installations may omit these
+# keys and use the shown built-in defaults.
+yarn.http.connect-timeout-ms=3000
+yarn.http.read-timeout-ms=5000
+
+# Local YARN CLI used for manual stop and failed-submission cleanup.
+yarn.command=yarn
+
+# Maximum wait for the YARN kill command.
+yarn.kill.timeout-seconds=30
 
 # Browser-facing YARN proxy prefix used for ApplicationId links.
 yarn.proxy.base-url=https://yarn-gateway.example.com/gateway/emr/yarn/proxy

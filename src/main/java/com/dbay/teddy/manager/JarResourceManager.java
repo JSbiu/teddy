@@ -94,6 +94,15 @@ public class JarResourceManager {
         }
     }
 
+    public Path resolveForLaunch(String jar) {
+        Path target = resolveRequestedJar(jar);
+        if (Files.isSymbolicLink(target)
+                || !Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalArgumentException("Spark application JAR must be a regular file under lib.home");
+        }
+        return target;
+    }
+
     public List<String> delete(String jar) {
         Path target = resolveRequestedJar(jar);
         if (Files.isSymbolicLink(target)) {

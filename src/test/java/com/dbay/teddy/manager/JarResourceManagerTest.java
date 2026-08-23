@@ -60,6 +60,20 @@ public class JarResourceManagerTest {
         assertTrue(Files.exists(outside));
     }
 
+    @Test
+    public void resolvesOnlyExistingDirectJarsForSparkLaunch() throws Exception {
+        Path libHome = temporaryFolder.newFolder("launch-jars").toPath();
+        Path managed = Files.write(libHome.resolve("job.jar"), new byte[]{1});
+        Path outside = temporaryFolder.newFile("outside-launch.jar").toPath();
+        JarResourceManager resources = new JarResourceManager(libHome);
+
+        assertEquals(managed.toAbsolutePath().normalize(),
+                resources.resolveForLaunch("job.jar"));
+        assertRejected(() -> resources.resolveForLaunch("missing.jar"));
+        assertRejected(() -> resources.resolveForLaunch(
+                outside.toAbsolutePath().toString()));
+    }
+
     private void assertRejected(Runnable action) {
         try {
             action.run();

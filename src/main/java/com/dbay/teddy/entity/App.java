@@ -57,13 +57,16 @@ public class App {
     }
 
     public String totalRunningTime() {
-        long totalTime;
-        if (this.getFinishedTime() > 0L) {
-            totalTime = this.getFinishedTime() - this.getStartedTime();
-        } else {
-            totalTime = Calendar.getInstance().getTimeInMillis() - this.getStartedTime();
+        Long started = this.getStartedTime();
+        if (started == null || started <= 0L) {
+            return "NONE";
         }
-        return formatDuring(totalTime);
+
+        Long finished = this.getFinishedTime();
+        long totalTime = finished != null && finished > 0L
+                ? finished - started
+                : Calendar.getInstance().getTimeInMillis() - started;
+        return formatDuring(Math.max(0L, totalTime));
     }
 
     public String getId() {

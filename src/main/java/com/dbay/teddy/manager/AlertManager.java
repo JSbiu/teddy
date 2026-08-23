@@ -1,10 +1,9 @@
 package com.dbay.teddy.manager;
 
 import com.alibaba.fastjson.JSON;
-import com.dbay.teddy.utils.TeddyConf;
 import com.dbay.teddy.entity.Job;
 import com.dbay.teddy.service.JobService;
-import org.apache.commons.lang3.StringUtils;
+import com.dbay.teddy.utils.TeddyConf;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,12 +25,9 @@ public class AlertManager implements ApplicationRunner {
 
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
-//    @Autowired
-//    private EmailSender emailSender;
-
     @Autowired
     private WebHookSender webHookSender;
-    
+
     @Autowired
     private JobService jobService;
 
@@ -39,25 +35,23 @@ public class AlertManager implements ApplicationRunner {
             new BasicThreadFactory.Builder().namingPattern("alert-pool-%d").daemon(true).build());
 
     @Override
-    public void run(ApplicationArguments applicationArguments) throws Exception {
-        logger.info("启动 告警服务 线程");
+    public void run(ApplicationArguments applicationArguments) {
+        logger.info("启动告警线程");
 
-        scheduledThreadPool.scheduleAtFixedRate(()->{
+        scheduledThreadPool.scheduleAtFixedRate(() -> {
             try {
                 List<Job> jobs = jobService.findAllWithAppId();
-                jobs.forEach(t -> {
-                    if (StringUtils.isNotBlank(t.getState())
-                            && !"RUNNING".equals(t.getState())
-                            && t.getSend() == 1) {
-                        logger.error("检测到异常任务");
-                        //emailSender.send(t.getEmail(), t.getName() + "状态异常", JSON.toJSONString("state:"+ t.getState()));
-                        webHookSender.wxRobotSend(t.getWebhook(), t.getName() + "状态异常", JSON.toJSONString("state:"+t.getState()));
-
+                for (Job job : jobs) {
+                    if (JobStatePolicy.shouldAlert(job)) {
+                        logger.error("检测到失败任务{}", job.getId());
+                        webHookSender.wxRobotSend(job.getWebhook(),
+                                job.getName() + "状态异常",
+                                JSON.toJSONString("state:" + job.getState()));
                     }
-                });
-            }catch(Exception e){
-                logger.error(e.getMessage());
+                }
+            } catch (RuntimeException e) {
+                logger.error("告警扫描失败", e);
             }
-        },0, Long.parseLong(TeddyConf.get("alert.interval")), TimeUnit.SECONDS);
+        }, 0, Long.parseLong(TeddyConf.get("alert.interval")), TimeUnit.SECONDS);
     }
 }

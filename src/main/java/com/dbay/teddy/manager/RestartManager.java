@@ -1,9 +1,8 @@
 package com.dbay.teddy.manager;
 
-import com.dbay.teddy.utils.TeddyConf;
 import com.dbay.teddy.entity.Job;
 import com.dbay.teddy.service.JobService;
-import org.apache.commons.lang3.StringUtils;
+import com.dbay.teddy.utils.TeddyConf;
 import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,34 +31,31 @@ public class RestartManager implements ApplicationRunner {
             new BasicThreadFactory.Builder().namingPattern("restart-pool-%d").daemon(true).build());
 
     @Override
-    public void run(ApplicationArguments args) throws Exception {
-        logger.info("start restarter");
+    public void run(ApplicationArguments args) {
+        logger.info("启动自动重启线程");
 
         long restartInterval = Long.parseLong(TeddyConf.get("auto.restart.interval"));
         long initialDelay = Long.parseLong(TeddyConf.get(
                 "auto.restart.initial-delay",
                 String.valueOf(restartInterval)));
 
-        scheduledThreadPool.scheduleAtFixedRate(()->{
+        scheduledThreadPool.scheduleAtFixedRate(() -> {
             try {
                 List<Job> jobs = jobService.findAllWithAppId();
-                logger.info("扫描到" + jobs.size() + "个任务需要检测是否重启");
-                jobs.forEach(t -> {
-                    if (StringUtils.isNotBlank(t.getState())
-                            && !"RUNNING".equals(t.getState())
-                            && t.getRestart().equals(1)
-                            && t.getRetries() > 0) {
+                logger.info("扫描到{}个任务需要检测是否重启", jobs.size());
+                for (Job job : jobs) {
+                    if (JobStatePolicy.shouldAutoRestart(job)) {
                         try {
-                            logger.info("尝试重启task:" + t.getId() + ",剩余次数:" + t.getRetries());
-                            jobService.autoRestart(t);
-                        } catch (Exception e) {
-                            e.printStackTrace();
+                            logger.info("尝试重启任务{}，剩余次数{}", job.getId(), job.getRetries());
+                            jobService.autoRestart(job);
+                        } catch (RuntimeException e) {
+                            logger.error("自动重启任务" + job.getId() + "失败", e);
                         }
                     }
-                });
-            }catch (Exception e){
-                logger.error(e.getMessage());
+                }
+            } catch (RuntimeException e) {
+                logger.error("自动重启扫描失败", e);
             }
-        },initialDelay,restartInterval, TimeUnit.SECONDS);
+        }, initialDelay, restartInterval, TimeUnit.SECONDS);
     }
 }

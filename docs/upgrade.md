@@ -55,8 +55,11 @@
 
     cd "$staging"
     grep -F 'teddy-<版本>-release.tar.gz' SHA256SUMS | sha256sum -c -
+    umask 022
     tar -xzf teddy-<版本>-release.tar.gz -C "$teddy_root/releases/"
-    ls "$teddy_release/bin/upgrade.sh"
+    ls -l "$teddy_release/bin/upgrade.sh"
+
+最后一行权限应为 `-rwxr-xr-x`。若解压前 shell 里留着 077 之类的 `umask`，脚本会变成 700，与包内记录的 0755 不符；此时删掉版本目录、设好 `umask` 重新解压即可。
 
 1.2.1 起的 `SHA256SUMS` 为 LF 行尾，可直接校验。更早的发布包使用 CRLF，需要在管道中加 `| tr -d '\r'` 才能通过。
 
@@ -68,15 +71,19 @@
 
 验收脚本只调用健康接口、登录/退出、任务列表和 `yarn application -status`，不调用任务提交、停止或重启接口。
 
-先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史。**下面五行要一次执行完**——只跑 `read` 而不写文件，验收脚本会报 `password file does not exist`：
+先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史。**下面几行要一次执行完**——只跑 `read` 而不写文件，验收脚本会报 `password file does not exist`：
 
-    umask 077
     read -r -s TEDDY_ACCEPTANCE_PASSWORD
+    saved_umask=$(umask)
+    umask 077
     printf '%s' "$TEDDY_ACCEPTANCE_PASSWORD" > /var/tmp/teddy-acceptance-password
+    umask "$saved_umask"
     unset TEDDY_ACCEPTANCE_PASSWORD
     ls -l /var/tmp/teddy-acceptance-password
 
 最后一行应显示 `-rw-------` 且长度非零；不满足就先解决再继续。
+
+`umask` 用完必须还原：它会持续影响该 shell 后续创建的所有文件，包括解压出来的发布包（会把 `bin/*.sh` 变成 700，而不是包内的 0755）。
 
 采集升级前快照。`TEDDY_EXPECT_APPLICATION_COUNT` 应填最近一次验收确认的基线数量；实际数量已变化时先查清原因再继续：
 

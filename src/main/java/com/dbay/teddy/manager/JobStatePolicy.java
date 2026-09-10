@@ -47,7 +47,8 @@ public final class JobStatePolicy {
                 && Integer.valueOf(1).equals(job.getSend());
     }
 
-    private static String normalize(String state) {
+    /** 包内共享，避免各处再写一份状态归一化逻辑。 */
+    static String normalize(String state) {
         if (state == null || state.trim().isEmpty()) {
             return null;
         }

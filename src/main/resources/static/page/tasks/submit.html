@@ -25,7 +25,7 @@
                 <li><a href="../taskm/monitor.html">任务监控</a></li>
                 <li class="active"><a href="#">任务配置</a></li>
                 <li><a href="../jars/resource.html">资源管理</a></li>
-                <li><a href="#">系统配置（待开发）</a></li>
+                <li><a href="../system/config.html">系统配置</a></li>
             </ul>
         </div>
         <p class="navbar-text navbar-right" id="teddy-version"></p>
@@ -110,8 +110,13 @@
             <div class="form-group">
                 <label class="col-sm-2 control-label">企业微信机器人</label>
                 <div class="col-sm-10">
-                    <input class="form-control" id="c2WebhookInput" type="text"
-                           placeholder="企业微信机器人 Webhook 地址（多地址用英文分号‘;’隔开）">
+                    <div class="input-group">
+                        <input class="form-control" id="c2WebhookInput" type="text"
+                               placeholder="企业微信机器人 Webhook 地址（多地址用英文分号‘;’隔开）">
+                        <span class="input-group-btn">
+                            <button type="button" id="c2FillDefaultBtn" class="btn btn-default">填入默认通知</button>
+                        </span>
+                    </div>
                 </div>
             </div>
             <div class="form-group">

@@ -69,5 +69,21 @@ $(function() {
                }
            });
        });
+
+    // 从系统配置里取默认通知，填入机器人地址
+    $('#c2FillDefaultBtn').click(function () {
+        $.get('/system/notify-config/default', function (response) {
+            if (response.state !== 'success') {
+                alert(response.data);
+                return;
+            }
+            var data = response.data || {};
+            if (!data.configured || !data.webhook) {
+                alert('尚未配置默认通知，请先到「系统配置」页面添加，并勾选"设为默认"。');
+                return;
+            }
+            $('#c2WebhookInput').val(data.webhook);
+        });
+    });
 });
 

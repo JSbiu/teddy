@@ -116,11 +116,20 @@ teddy_config_file=${TEDDY_CONFIG_FILE:-"$teddy_conf_dir/teddy.properties"}
 health_url=${TEDDY_HEALTH_URL:-"http://127.0.0.1:${TEDDY_SERVER_PORT:-18081}/system/health"}
 base_url=${TEDDY_BASE_URL:-$(printf '%s' "$health_url" | sed 's#/system/health$##')}
 auth_username=${TEDDY_AUTH_USERNAME:-$(get_property "$teddy_config_file" auth.username)}
-[ -n "$auth_username" ] || fail "authentication username is unavailable"
+skip_login=${TEDDY_SKIP_LOGIN:-0}
+case "$skip_login" in
+    0|1) ;;
+    *) fail "TEDDY_SKIP_LOGIN must be 0 or 1" ;;
+esac
+if [ "$skip_login" -eq 0 ]; then
+    [ -n "$auth_username" ] || fail "authentication username is unavailable"
+fi
 
 cookie_file=${TEDDY_COOKIE_FILE:-}
 owned_cookie=0
-if [ -z "$cookie_file" ]; then
+if [ "$skip_login" -eq 1 ]; then
+    cookie_file=
+elif [ -z "$cookie_file" ]; then
     password_file=${TEDDY_AUTH_PASSWORD_FILE:-}
     [ -n "$password_file" ] ||
         fail "set TEDDY_AUTH_PASSWORD_FILE or TEDDY_COOKIE_FILE"
@@ -129,7 +138,7 @@ if [ -z "$cookie_file" ]; then
     chmod 600 "$cookie_file"
     owned_cookie=1
 
-    login_response=$(curl --fail --silent --show-error         --cookie-jar "$cookie_file"         --data-urlencode "username=$auth_username"         --data-urlencode "password@$password_file"         "$base_url/teddy/login") ||
+    login_response=$(curl --fail --silent --show-error         --cookie-jar "$cookie_file"         --data-urlencode "userName=$auth_username"         --data-urlencode "password@$password_file"         "$base_url/teddy/login") ||
         fail "Teddy login request failed"
     printf '%s' "$login_response" |
         grep -Eq '"state"[[:space:]]*:[[:space:]]*"success"' ||
@@ -152,8 +161,13 @@ printf '%s' "$health_response" |
     grep -Eq '"status"[[:space:]]*:[[:space:]]*"UP"' ||
     fail "Teddy health response is not UP"
 
-jobs_response=$(curl --fail --silent --show-error     --cookie "$cookie_file" "$base_url/job/list?page=1&size=500") ||
-    fail "Teddy job list request failed"
+if [ -n "$cookie_file" ]; then
+    jobs_response=$(curl --fail --silent --show-error     --cookie "$cookie_file" "$base_url/job/list?page=1&size=500") ||
+        fail "Teddy job list request failed"
+else
+    jobs_response=$(curl --fail --silent --show-error     "$base_url/job/list?page=1&size=500") ||
+        fail "Teddy job list request failed"
+fi
 printf '%s' "$jobs_response" |
     grep -Eq '"state"[[:space:]]*:[[:space:]]*"success"' ||
     fail "Teddy job list response is not successful"

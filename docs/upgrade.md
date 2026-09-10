@@ -2,9 +2,23 @@
 
 跨版本的升级手册。执行时把 `<版本>` 替换为实际版本号，例如 `1.2.1`。
 
-下文用 `$teddy_root` 表示部署根目录（即 `releases` 与 `shared` 的父目录），请按自己的部署布局设置：
+## 开始前：设置变量
 
-    teddy_root=<你的部署根目录>
+下文用 `$teddy_root` 表示部署根目录（`releases` 与 `shared` 的父目录），`$acceptance_root` 表示本次验收的临时目录。**这两个变量必须先导出再执行后续命令**：它们由 shell 在命令执行前展开，未设置时会静默退化成 `/current/bin/acceptance.sh`、`/before` 这类错误路径，而不是报"变量未定义"。
+
+    export teddy_root=<你的部署根目录>
+    export acceptance_root=/var/tmp/teddy-<版本>-$(date +%Y%m%d-%H%M%S)
+    mkdir -p "$acceptance_root"
+
+不知道部署根目录时，从运行中的进程反查。进程里的路径形如 `<部署根目录>/releases/teddy-<版本>/teddy.jar`，去掉末尾三级即是根目录：
+
+    ps -ef | grep -F teddy.jar | grep -v grep
+
+设置后先确认路径成立，再往下走：
+
+    ls "$teddy_root/current/bin/acceptance.sh"
+
+`acceptance.sh` 会从自身位置反推部署根目录，因此 `TEDDY_SERVICE_ROOT` 通常无需设置，`$teddy_root` 只用于拼接脚本路径。
 
 升级脚本只停止和启动 Teddy JVM、切换 `current` / `previous` 链接并检查健康状态，**不会停止或重新提交正在运行的 Spark application**。
 
@@ -33,7 +47,9 @@
 
 上传 `teddy-<版本>-release.tar.gz` 与 `SHA256SUMS` 后，在服务器校验选中的包，再解压到 `releases/`：
 
-    grep -F 'teddy-<版本>-release.tar.gz' SHA256SUMS | tr -d '\r' | sha256sum -c -
+    grep -F 'teddy-<版本>-release.tar.gz' SHA256SUMS | sha256sum -c -
+
+1.2.1 起的 `SHA256SUMS` 为 LF 行尾，可直接校验。更早的发布包使用 CRLF，需要在管道中加 `| tr -d '\r'` 才能通过。
 
 正式版本号、标签和生产升级须经用户批准。开发产物带 `-SNAPSHOT` 时不得用于生产。
 
@@ -48,10 +64,8 @@
     printf '%s' "$TEDDY_ACCEPTANCE_PASSWORD" > /var/tmp/teddy-acceptance-password
     unset TEDDY_ACCEPTANCE_PASSWORD
 
-为本次窗口创建唯一目录并采集升级前快照。`TEDDY_EXPECT_APPLICATION_COUNT` 应填最近一次验收确认的基线数量；实际数量已变化时先查清原因再继续：
+采集升级前快照。`TEDDY_EXPECT_APPLICATION_COUNT` 应填最近一次验收确认的基线数量；实际数量已变化时先查清原因再继续：
 
-    acceptance_root=/var/tmp/teddy-<版本>-$(date +%Y%m%d-%H%M%S)
-    mkdir -p "$acceptance_root"
     TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
     $teddy_root/current/bin/acceptance.sh capture "$acceptance_root/before"

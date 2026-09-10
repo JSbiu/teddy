@@ -38,10 +38,11 @@ try {
         '{0}  {1}' -f $hash.Hash.ToLowerInvariant(), $artifact.Name
     }
 
+    # LF endings so the checksum file validates with `sha256sum -c` on Linux.
     $checksumPath = Join-Path $targetDirectory 'SHA256SUMS'
-    [System.IO.File]::WriteAllLines(
+    [System.IO.File]::WriteAllText(
         $checksumPath,
-        $checksumLines,
+        (($checksumLines -join "`n") + "`n"),
         [System.Text.UTF8Encoding]::new($false)
     )
 

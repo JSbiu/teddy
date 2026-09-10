@@ -26,6 +26,11 @@ foreach ($artifact in @($expectedArtifacts + $checksumPath)) {
     }
 }
 
+$checksumBytes = [System.IO.File]::ReadAllBytes($checksumPath)
+if ($checksumBytes -contains 13) {
+    throw 'SHA256SUMS contains CR bytes; it must use LF endings so `sha256sum -c` works on Linux.'
+}
+
 $checksumEntries = @{}
 foreach ($line in Get-Content -LiteralPath $checksumPath) {
     if ($line -notmatch '^([0-9a-fA-F]{64})\s{2}(.+)$') {

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>dbay.demo</groupId>
     <artifactId>teddy</artifactId>
-    <version>1.2.1-SNAPSHOT</version>
+    <version>1.2.1</version>
 
     <parent>
         <groupId>org.springframework.boot</groupId>

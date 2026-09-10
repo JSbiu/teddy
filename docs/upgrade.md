@@ -57,12 +57,15 @@
 
 验收脚本只调用健康接口、登录/退出、任务列表和 `yarn application -status`，不调用任务提交、停止或重启接口。
 
-先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史：
+先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史。**下面五行要一次执行完**——只跑 `read` 而不写文件，验收脚本会报 `password file does not exist`：
 
     umask 077
     read -r -s TEDDY_ACCEPTANCE_PASSWORD
     printf '%s' "$TEDDY_ACCEPTANCE_PASSWORD" > /var/tmp/teddy-acceptance-password
     unset TEDDY_ACCEPTANCE_PASSWORD
+    ls -l /var/tmp/teddy-acceptance-password
+
+最后一行应显示 `-rw-------` 且长度非零；不满足就先解决再继续。
 
 采集升级前快照。`TEDDY_EXPECT_APPLICATION_COUNT` 应填最近一次验收确认的基线数量；实际数量已变化时先查清原因再继续：
 

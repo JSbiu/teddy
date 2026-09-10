@@ -1,6 +1,7 @@
 # Default ignored files
 /shelf/
 /.agents/
+/.local/
 /conf/application.properties
 /conf/teddy.env
 /conf/teddy.properties

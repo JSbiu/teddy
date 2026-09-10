@@ -1,66 +1,41 @@
-# Teddy Repository Instructions
+# Teddy 项目级指令
 
-## Project Scope
+本文件负责项目导航和长期技术规范；跨项目习惯遵循用户级 `AGENTS.md`。开始工作时读取项目根目录的 `.local/memory.md`（如存在），其中的个人约定、本机事实和历史记录不覆盖当前用户指令或适用的 `AGENTS.md`。
 
-- Teddy is a lightweight control plane for Spark applications running on YARN. It uploads and manages JARs, submits jobs, records metadata in MySQL, polls YARN state, sends alerts, and optionally restarts failed applications.
-- This repository does not contain the business logic of the managed Spark streaming jobs. Do not add job-specific processing code here unless the user explicitly changes the project scope.
-- Treat the current application as a small Spring Boot monolith with server-rendered static assets; do not introduce a separate frontend toolchain or distributed architecture without an explicit requirement.
+## 项目导航
 
-## Technology Baseline
+- [README.md](README.md)：项目范围、代码入口、接口约定、配置和构建验证方式。
+- [docs/1.2.0-plan.md](docs/1.2.0-plan.md)：1.2.0 需求与阶段记录；后续需求进度维护在对应计划中。
+- [docs/1.2.0-upgrade.md](docs/1.2.0-upgrade.md)：版本化目录下的升级与验收；[docs/phase1-upgrade.md](docs/phase1-upgrade.md) 仅用于旧目录首次迁移。
+- [CHANGELOG.md](CHANGELOG.md)：版本变更记录。历史计划的时间窗、操作授权和验收结果不自动适用于当前任务。
 
-- Backend: Java, Maven, Spring Boot 2.3.5, Spark Launcher 3.2.1, MyBatis, and MySQL.
-- Frontend: static HTML, jQuery 1.8.3, and Bootstrap; there is no Node.js build.
-- Development is commonly performed on Windows. Runtime packaging and the scripts under `bin/` target Linux.
-- Preserve LF line endings and executable semantics for `bin/*.sh`.
-- Do not upgrade Java, Spring Boot, Spark, MyBatis, frontend libraries, or add production dependencies unless the task explicitly includes that change.
+## 技术与兼容性
 
-## Important Paths
+- Teddy 是 Spark on YARN 管理端；Spark 作业自身的业务处理逻辑不属于本仓库，除非当前需求明确扩展范围。
+- 保持现有 Spring Boot 单体、controller/service/manager/mapper 分层及静态页面结构。Java、Maven 和依赖兼容性以 `pom.xml` 为准；技术栈升级、生产依赖新增或独立前端构建须属于当前任务范围。
+- 修改接口时同时追踪后端、鉴权配置和所有静态页面调用，保留业务接口的 `state/data` 外层、变更操作的 POST 限制，以及健康接口的独立响应格式。
+- 保持 Spark 配置 `key=value;key=value` 格式。修改 `Job` 或 SQL 时联动实体、mapper、建表 SQL、服务及页面，兼容存量 `job` 数据；不兼容变更须提供迁移方案。
+- Linux 发布脚本 `bin/*.sh` 保持 LF；发布包保持 thin-JAR、`lib/` 依赖和脚本可执行权限的契约。
 
-- `src/main/java/com/dbay/teddy/Application.java`: application entry point and external Teddy property loading.
-- `src/main/java/com/dbay/teddy/controller/`: HTTP endpoints for jobs, resources, and login.
-- `src/main/java/com/dbay/teddy/service/JobService.java`: Spark submission, stop, restart, and job persistence orchestration.
-- `src/main/java/com/dbay/teddy/service/YarnService.java`: YARN ResourceManager REST access.
-- `src/main/java/com/dbay/teddy/manager/`: state refresh, restart, alert, resource, token, email, and webhook behavior.
-- `src/main/java/com/dbay/teddy/mapper/JobMapper.java`: MySQL `job` table schema and queries.
-- `src/main/resources/static/`: browser UI and AJAX calls.
-- `src/main/resources/config/application.properties`: Spring Boot and datasource settings.
-- `conf/teddy.properties`: deployment-specific Spark, YARN, resource, log, alert, and restart settings.
-- `.agents/memory.md`: local machine and collaboration memory. Keep local-only facts here and do not stage or commit it unless explicitly requested.
+## 作业生命周期与资源边界
 
-## Change Rules
+- 提交、停止和重启逻辑须同时考虑 ApplicationId、数据库记录、等待超时和部分失败清理，避免留下无人跟踪的运行任务；停止使用的 YARN 命令须有执行上限。
+- 状态策略统一复用 `JobStatePolicy`。区分过渡态、成功终态、失败终态、人工 KILL 和未知状态；自动重启及故障告警仅针对明确失败，并遵守启用开关和重试次数。
+- YARN 查询保留连接/读取超时、ResourceManager 故障转移和每任务每轮一次快照；暂时不可达时保留上次状态，不制造失败状态。
+- JAR 上传、删除和提交共用 `JarResourceManager`，限制在规范化 `lib.home` 下的直属普通 `.jar` 文件；拒绝路径穿越、目录逃逸和符号链接。
+- 会话鉴权由后端执行。调整登录、Cookie 或接口访问范围时联动 `security/`、`AppConfig` 和页面调用，不能仅依赖浏览器检查。
 
-- Make the smallest change that satisfies the request and preserve the existing controller-service-manager-mapper structure.
-- Before changing an endpoint, trace both its backend implementation and every static JavaScript caller.
-- Preserve the API envelope `{"state": "success|error", "data": ...}` unless the user requests an API migration.
-- Treat the semicolon-delimited Spark configuration format (`key=value;key=value`) as a compatibility boundary unless changing it is part of the task.
-- When changing the `Job` model or SQL, update the entity, mapper statements, table-creation SQL, service behavior, and affected UI together.
-- Do not silently change job-state semantics. Distinguish transitional YARN states from terminal states, and consider how manual stop, alerting, and automatic restart interact.
-- Avoid unrelated modernization or formatting changes in the same patch.
+## 配置与实际环境
 
-## Security and Production Boundaries
+- 仓库与发布包只保留无敏感值的示例配置，生产配置和持久目录放在版本目录之外。密码、Token、Cookie、完整 Webhook 地址等不得进入源码、日志、文档或记忆。
+- 私有地址、本机路径和运维记录仅在必要的本地上下文保存，不写入共享文档或上传外部系统；配置外置及迁移须说明对部署的影响，不顺带改动实际凭据。
+- 本地代码检查、编译和隔离测试按任务范围执行；实际 MySQL、YARN、邮件、Webhook、JAR 存储及 Teddy 调用按当前会话已授权的环境和操作范围执行。环境未明确时按生产处理，不能为验证代码自行连接。
+- 管理端升级不得停止或重新提交已经运行的 Spark application。执行上线操作前按手册准备发布包、预检及前后快照；只读验收仍会访问实际服务，不等于离线测试。
 
-- Treat any configured HTTP endpoint, YARN cluster, MySQL database, mail server, webhook, JAR directory, and deployed Teddy instance as production unless the user explicitly identifies a test environment.
-- Do not start, stop, submit, kill, restart, delete, upload, or reconfigure a live application or resource without explicit authorization for that operation.
-- Do not connect to the configured MySQL, YARN, mail, webhook, or public Teddy endpoint merely to validate a code change. Prefer mocks, local fixtures, and isolated tests.
-- Never add, expose, repeat, or commit passwords, tokens, webhook keys, private hosts, or other credentials. When touching existing configuration, replace secrets with placeholders or externalized values and clearly report any migration requirement.
-- Keep all resource upload and deletion operations confined to the canonical `lib.home` directory. Reject traversal, absolute-path escape, and unexpected file types.
-- Authentication and authorization must be enforced by the backend. A browser-side token check alone is not a security boundary.
-- Do not log credentials, full webhook URLs, cookies, or other authentication material.
+## 验证与文档维护
 
-## Runtime and Domain Invariants
-
-- Spark applications are submitted through the locally installed Spark distribution and normally target YARN in cluster deploy mode.
-- A successful submission must obtain an ApplicationId and leave a consistent database record. Handle partial failure so that an application is not silently left running and untracked.
-- Stopping an application uses the local YARN CLI. Any change to stop or restart logic must account for automatic restart settings.
-- YARN REST calls must be bounded by connection/read timeouts and should avoid duplicate queries for the same application during one refresh cycle.
-- Alerting and automatic restart must not treat every non-`RUNNING` state as equivalent. Changes in this area require explicit handling of transitional, successful terminal, failed terminal, killed, and unknown states.
-- Preserve compatibility with existing rows in the MySQL `job` table unless a migration is supplied.
-
-## Verification
-
-- For backend changes, run the narrowest relevant unit tests first. Use `mvn -DskipTests=false test` only when the tests do not require live infrastructure.
-- For packaging or compilation checks, use `mvn -DskipTests package`. Report when dependency resolution or environment-specific configuration prevents verification.
-- Existing tests are sparse and environment-coupled. Add focused tests for changed logic when practical; do not claim coverage from a context-load test alone.
-- For static UI changes, verify the corresponding endpoint contract and exercise the affected page locally when a runnable local environment is available. There is no frontend build command.
-- Never use the real cluster, database, webhook, or JAR store as a test fixture without explicit user approval.
-- In the handoff, state what was changed, what was verified, and any production configuration or migration the user must perform.
+- 按改动范围使用 README 中的隔离测试和发布检查。后端先跑相关测试；发布包改动运行完整构建及产物自检；脚本改动运行对应隔离演练；页面改动核对接口并在可用的本地环境验证。
+- 保留历史环境耦合测试的跳过边界，恢复前先隔离依赖。交付说明实际验证范围、未覆盖项及配置/迁移要求，不把旧测试结果当作本轮验收。
+- 已核验的共享知识沉淀到 README 或对应 `docs/`，需求进度以需求文档为准；`.local/memory.md` 只保留个人约定、本机事实和必要入口，易变事实标明日期、范围和来源。
+- 较长任务确有续接需要时使用 `.local/checkpoints/` 保存目标、进度、证据和待办；短任务无需固定建记录。阶段结束后先更新共享文档，再收敛记忆与 checkpoint。
+- `.local/` 默认不纳入 Git。旧记忆中的临时授权或修复命令不能直接成为当前操作依据；跨项目 Git 习惯遵循用户级指令。

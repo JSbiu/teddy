@@ -20,6 +20,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 | `manager/` | `JobStatePolicy`、`StateRefresher`、`RestartManager`、`AlertManager` 负责状态策略、刷新、重启及告警 |
 | `manager/JarResourceManager.java` | `lib.home` 下的 JAR 上传、删除和提交路径校验 |
 | `entity/Job.java`、`mapper/JobMapper.java` | 任务模型、`job` 表建表语句与数据访问 |
+| `entity/NotifyConfig.java`、`mapper/NotifyConfigMapper.java`、`service/NotifyConfigService.java` | 通知配置模型、`notify_config` 表访问与默认项约束 |
 
 其他入口：`src/main/resources/static/` 保存页面与 AJAX 调用；`src/main/resources/config/application.properties` 保存无凭据的应用默认值；`conf/*.example` 保存部署示例；`src/assembly.xml` 定义发布包；`bin/` 和 `tools/` 分别提供 Linux 运维脚本与本地构建、检查工具。
 
@@ -30,6 +31,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 - 页面版本由 `static/js/teddy-version.js` 读取健康响应的顶层 `version` 并显示在 `#teddy-version`。版本来源是 JAR manifest 的 `Implementation-Version`，未提供 manifest 版本时回退为 `development`。
 - Spark 配置采用分号分隔的 `key=value;key=value`。作业的启动参数、ApplicationId 和持久化记录由 `JobService` 协调；上传、删除和启动用到的 JAR 统一经过资源目录校验。
 - `JobStatePolicy` 统一处理 YARN 状态：自动重启和故障告警仅针对明确的 `FAILED`；过渡态、成功结束、人工 KILL 和未知状态不能混作故障。查询暂时失败时保留上次状态。
+- `/system/notify-config/**` 提供通知配置的查询与变更（变更接口仅接受 POST），全部由后端会话拦截器保护。配置存放在 `notify_config` 表，启动时按需创建；标记为默认的那条供任务配置页"填入默认通知"按钮使用，全局最多一条默认项。
 
 ## 版本管理
 
@@ -106,7 +108,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 
 发布检查及脚本演练依赖工具链；两个演练脚本使用 Git for Windows 风格的 POSIX 路径及 `sh`，在临时目录中模拟命令和服务。Windows 符号链接能力可能限制回滚演练，未覆盖时须单独说明。
 
-当前隔离测试覆盖会话鉴权、资源目录边界、YARN 查询、状态策略和控制器行为。`TaskRepositoryTest`、`EmailTest`、`SchedulerThreadPoolTest` 保留类级 `@Ignore`：分别涉及未隔离上下文、邮件/配置依赖和不退出的线程示例；不能把跳过项算作通过。实际测试数量与结果以本次输出为准。
+当前隔离测试覆盖会话鉴权、资源目录边界、YARN 查询、状态策略、通知配置和控制器行为。`TaskRepositoryTest`、`EmailTest`、`SchedulerThreadPoolTest` 保留类级 `@Ignore`：分别涉及未隔离上下文、邮件/配置依赖和不退出的线程示例；不能把跳过项算作通过。实际测试数量与结果以本次输出为准。
 
 静态页面变更需同时核对对应接口、鉴权和版本显示，在可用的本地环境操作受影响页面。使用真实配置启动 Teddy 会连接数据库并运行后台管理逻辑，应先准备隔离配置。
 

@@ -50,14 +50,15 @@ public class AlertManager implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments applicationArguments) {
-        logger.info("启动告警线程");
+        long scanIntervalSeconds = Long.parseLong(TeddyConf.get("alert.interval"));
+        logger.info("启动告警线程，扫描间隔{}秒", scanIntervalSeconds);
 
         scheduledThreadPool.scheduleAtFixedRate(() -> {
             try {
                 List<Job> jobs = jobService.findAllWithAppId();
                 for (Job job : jobs) {
                     try {
-                        inspect(job);
+                        inspect(job, scanIntervalSeconds);
                     } catch (RuntimeException e) {
                         logger.error("任务" + job.getId() + "告警检查失败", e);
                     }
@@ -65,10 +66,10 @@ public class AlertManager implements ApplicationRunner {
             } catch (RuntimeException e) {
                 logger.error("告警扫描失败", e);
             }
-        }, 0, Long.parseLong(TeddyConf.get("alert.interval")), TimeUnit.SECONDS);
+        }, 0, scanIntervalSeconds, TimeUnit.SECONDS);
     }
 
-    private void inspect(Job job) {
+    private void inspect(Job job, long scanIntervalSeconds) {
         Integer jobId = job.getId();
         if (jobId == null) {
             return;
@@ -90,7 +91,7 @@ public class AlertManager implements ApplicationRunner {
         AlertTrack track = tracks.get(jobId);
 
         if (track == null) {
-            track = new AlertTrack(state);
+            track = new AlertTrack(state, scanIntervalSeconds);
             tracks.put(jobId, track);
             if (AlertPolicy.isFailure(state)) {
                 sendFailure(job, track, now);
@@ -133,8 +134,16 @@ public class AlertManager implements ApplicationRunner {
         appendQuote(builder, "YARN 终态：" + text(job.getState()));
         appendQuote(builder, "队列：" + text(job.getYarnQueue()));
         appendQuote(builder, "检测时间：" + LocalDateTime.now().format(TIMESTAMP));
-        appendQuote(builder, "第 " + notifyCount + " 次通知，下次约 " + intervalSeconds + " 秒后");
+        appendQuote(builder, "第 " + notifyCount + " 次通知，下次约 " + describeInterval(intervalSeconds) + "后");
         return builder.toString();
+    }
+
+    /** 整分钟时说分钟，比 600 秒直观。 */
+    private static String describeInterval(long seconds) {
+        if (seconds >= 60 && seconds % 60 == 0) {
+            return (seconds / 60) + " 分钟";
+        }
+        return seconds + " 秒";
     }
 
     private static String recoveryMessage(Job job, int notifyCount) {

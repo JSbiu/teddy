@@ -43,7 +43,8 @@ mail.passwd=
 # Scheduling intervals
 ###########
 
-# Alert interval in seconds.
+# Alert scan interval in seconds. Repeat reminders for the same ongoing failure
+# back off as 1x, 2x, 5x and then 10x this value.
 alert.interval=60
 
 # YARN state refresh interval in seconds.

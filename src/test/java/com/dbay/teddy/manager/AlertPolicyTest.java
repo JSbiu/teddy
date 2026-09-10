@@ -12,18 +12,36 @@ import static org.mockito.Mockito.when;
 public class AlertPolicyTest {
 
     @Test
-    public void repeatIntervalGrowsThenStaysAtTheCap() {
-        assertEquals(60L, AlertPolicy.repeatIntervalSeconds(1));
-        assertEquals(120L, AlertPolicy.repeatIntervalSeconds(2));
-        assertEquals(300L, AlertPolicy.repeatIntervalSeconds(3));
-        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(4));
-        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(5));
-        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(50));
+    public void repeatIntervalIsAMultipleOfTheScanInterval() {
+        assertEquals(60L, AlertPolicy.repeatIntervalSeconds(1, 60));
+        assertEquals(120L, AlertPolicy.repeatIntervalSeconds(2, 60));
+        assertEquals(300L, AlertPolicy.repeatIntervalSeconds(3, 60));
+        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(4, 60));
+        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(5, 60));
+        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(50, 60));
+    }
+
+    @Test
+    public void repeatIntervalTracksTheConfiguredScanInterval() {
+        assertEquals(10L, AlertPolicy.repeatIntervalSeconds(1, 10));
+        assertEquals(20L, AlertPolicy.repeatIntervalSeconds(2, 10));
+        assertEquals(50L, AlertPolicy.repeatIntervalSeconds(3, 10));
+        assertEquals(100L, AlertPolicy.repeatIntervalSeconds(4, 10));
+
+        assertEquals(300L, AlertPolicy.repeatIntervalSeconds(1, 300));
+        assertEquals(600L, AlertPolicy.repeatIntervalSeconds(2, 300));
+        assertEquals(1500L, AlertPolicy.repeatIntervalSeconds(3, 300));
+        assertEquals(3000L, AlertPolicy.repeatIntervalSeconds(4, 300));
     }
 
     @Test(expected = IllegalArgumentException.class)
     public void repeatIntervalRejectsNonPositiveCount() {
-        AlertPolicy.repeatIntervalSeconds(0);
+        AlertPolicy.repeatIntervalSeconds(0, 60);
+    }
+
+    @Test(expected = IllegalArgumentException.class)
+    public void repeatIntervalRejectsNonPositiveScanInterval() {
+        AlertPolicy.repeatIntervalSeconds(1, 0);
     }
 
     @Test

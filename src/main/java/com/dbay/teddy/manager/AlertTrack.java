@@ -19,12 +19,21 @@ final class AlertTrack {
         RECOVERY
     }
 
+    private final long scanIntervalSeconds;
     private String lastState;
     private int notifyCount;
     private long nextNotifyAt;
 
-    AlertTrack(String initialState) {
+    /**
+     * @param initialState        首次观察到的状态
+     * @param scanIntervalSeconds 告警扫描间隔（{@code alert.interval}），退避间隔按它的倍数计算
+     */
+    AlertTrack(String initialState, long scanIntervalSeconds) {
+        if (scanIntervalSeconds < 1) {
+            throw new IllegalArgumentException("scanIntervalSeconds must be positive");
+        }
         this.lastState = initialState;
+        this.scanIntervalSeconds = scanIntervalSeconds;
     }
 
     /**
@@ -57,7 +66,7 @@ final class AlertTrack {
      */
     long markNotified(long now) {
         notifyCount += 1;
-        long intervalSeconds = AlertPolicy.repeatIntervalSeconds(notifyCount);
+        long intervalSeconds = AlertPolicy.repeatIntervalSeconds(notifyCount, scanIntervalSeconds);
         nextNotifyAt = now + TimeUnit.SECONDS.toMillis(intervalSeconds);
         return intervalSeconds;
     }

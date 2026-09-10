@@ -71,7 +71,7 @@
 
 验收脚本只调用健康接口、登录/退出、任务列表和 `yarn application -status`，不调用任务提交、停止或重启接口。
 
-先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史。**下面几行要一次执行完**——只跑 `read` 而不写文件，验收脚本会报 `password file does not exist`：
+先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史。**文件内容必须是登录 Teddy 网页时输入的明文密码**，不是共享配置里 `auth.password-hash` 的哈希值——哈希格式为 `pbkdf2-sha256$迭代数$盐$密钥`，长度约 90 字节，误填会让登录一直被拒。**下面几行要一次执行完**——只跑 `read` 而不写文件，验收脚本会报 `password file does not exist`：
 
     read -r -s TEDDY_ACCEPTANCE_PASSWORD
     saved_umask=$(umask)

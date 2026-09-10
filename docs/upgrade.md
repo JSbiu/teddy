@@ -4,9 +4,10 @@
 
 ## 开始前：设置变量
 
-下文用 `$teddy_root` 表示部署根目录（`releases` 与 `shared` 的父目录），`$acceptance_root` 表示本次验收的临时目录。**这两个变量必须先导出再执行后续命令**：它们由 shell 在命令执行前展开，未设置时会静默退化成 `/current/bin/acceptance.sh`、`/before` 这类错误路径，而不是报"变量未定义"。
+下文用 `$teddy_root` 表示部署根目录（`releases` 与 `shared` 的父目录），`$teddy_release` 表示本次要升级到的版本目录，`$acceptance_root` 表示本次验收的临时目录。**这些变量必须先导出再执行后续命令**：它们由 shell 在命令执行前展开，未设置时会静默退化成 `/current/bin/acceptance.sh`、`/before` 这类错误路径，而不是报"变量未定义"。
 
     export teddy_root=<你的部署根目录>
+    export teddy_release="$teddy_root/releases/teddy-<版本>"
     export acceptance_root=/var/tmp/teddy-<版本>-$(date +%Y%m%d-%H%M%S)
     mkdir -p "$acceptance_root"
 
@@ -14,9 +15,11 @@
 
     ps -ef | grep -F teddy.jar | grep -v grep
 
-设置后先确认路径成立，再往下走：
+设置后先确认部署根目录成立：
 
     ls "$teddy_root/current/bin/acceptance.sh"
+
+`$teddy_release` 指向新解压的版本目录，要到"发布包"一节解压完成后才存在。
 
 `acceptance.sh` 会从自身位置反推部署根目录，因此 `TEDDY_SERVICE_ROOT` 通常无需设置，`$teddy_root` 只用于拼接脚本路径。
 
@@ -45,11 +48,15 @@
 
     .\tools\build-release.ps1
 
-上传 `teddy-<版本>-release.tar.gz` 与 `SHA256SUMS` 后，在服务器校验选中的包，再解压到 `releases/`：
+上传 `teddy-<版本>-release.tar.gz` 与 `SHA256SUMS` 后，在服务器校验选中的包，解压到 `releases/`，再确认新版本目录成立：
 
     grep -F 'teddy-<版本>-release.tar.gz' SHA256SUMS | sha256sum -c -
+    tar -xzf teddy-<版本>-release.tar.gz -C "$teddy_root/releases/"
+    ls "$teddy_release/bin/upgrade.sh"
 
 1.2.1 起的 `SHA256SUMS` 为 LF 行尾，可直接校验。更早的发布包使用 CRLF，需要在管道中加 `| tr -d '\r'` 才能通过。
+
+**升级前后的验收快照都要用新包里的脚本**（`"$teddy_release/bin/acceptance.sh"`），不要用 `$teddy_root/current/bin/acceptance.sh`：`current` 在升级前仍指向旧版本，旧包里的脚本可能有新包已修复的缺陷。1.2.1 之前的脚本在登录时提交的是 `username`，而后端读取 `userName`，因此登录必然被拒——用旧脚本会误判成密码错误。
 
 正式版本号、标签和生产升级须经用户批准。开发产物带 `-SNAPSHOT` 时不得用于生产。
 
@@ -71,12 +78,14 @@
 
     TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
-    $teddy_root/current/bin/acceptance.sh capture "$acceptance_root/before"
+    "$teddy_release/bin/acceptance.sh" capture "$acceptance_root/before"
+
+脚本报"登录被拒"时，先确认执行的是新包里的脚本（见"发布包"一节），再怀疑密码或共享配置里的 `auth.username`。
 
 ## 预检与升级
 
-    $teddy_root/releases/teddy-<版本>/bin/upgrade.sh --preflight
-    $teddy_root/releases/teddy-<版本>/bin/upgrade.sh
+    "$teddy_release/bin/upgrade.sh" --preflight
+    "$teddy_release/bin/upgrade.sh"
 
 预检失败时不要绕过，先修复共享配置、目录权限或发布包问题再重新运行。
 
@@ -84,10 +93,10 @@
 
     TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
-    $teddy_root/current/bin/acceptance.sh capture "$acceptance_root/after"
+    "$teddy_release/bin/acceptance.sh" capture "$acceptance_root/after"
 
     TEDDY_EXPECT_RELEASE=teddy-<版本> \
-    $teddy_root/current/bin/acceptance.sh compare \
+    "$teddy_release/bin/acceptance.sh" compare \
     "$acceptance_root/before" "$acceptance_root/after"
 
 通过条件：

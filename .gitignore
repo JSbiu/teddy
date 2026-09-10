@@ -1,7 +1,6 @@
 # Default ignored files
-/shelf/
-/.agents/
-/.local/
+.local/
+.vscode/
 /conf/application.properties
 /conf/teddy.env
 /conf/teddy.properties

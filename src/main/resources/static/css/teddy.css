@@ -1,0 +1,11 @@
+/* Teddy 自有样式。
+ * 本文件只新增 Teddy 自身的规则，不覆盖第三方样式表（bootstrap / jquery-ui）。 */
+
+/* 部署版本号：紧邻品牌名显示，作为次要信息弱化，不占用额外的导航高度。 */
+.navbar-brand .navbar-version {
+    margin-left: .5em;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: .02em;
+    opacity: .6;
+}

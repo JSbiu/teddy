@@ -71,17 +71,22 @@
 
 验收脚本只调用健康接口、登录/退出、任务列表和 `yarn application -status`，不调用任务提交、停止或重启接口。
 
-先准备一个权限为 600、末尾无换行的临时密码文件，避免明文进入命令历史。**文件内容必须是登录 Teddy 网页时输入的明文密码**，不是共享配置里 `auth.password-hash` 的哈希值——哈希格式为 `pbkdf2-sha256$迭代数$盐$密钥`，长度约 90 字节，误填会让登录一直被拒。**下面几行要一次执行完**——只跑 `read` 而不写文件，验收脚本会报 `password file does not exist`：
+先准备一个权限为 600、末尾无换行的临时密码文件。**文件内容必须是登录 Teddy 网页时输入的明文密码**，不是共享配置里 `auth.password-hash` 的哈希值——哈希格式为 `pbkdf2-sha256$迭代数$盐$密钥`，长度约 90 字节，误填会让登录一直被拒。
 
-    read -r -s TEDDY_ACCEPTANCE_PASSWORD
-    saved_umask=$(umask)
-    umask 077
+**第 1 步，输入密码。** 执行后光标会停住等你输入，**屏幕上不显示任何字符**，输完按回车：
+
+    read -r -s -p 'Teddy 登录密码: ' TEDDY_ACCEPTANCE_PASSWORD; echo
+
+**第 2 步，写入文件并检查**：
+
+    saved_umask=$(umask); umask 077
     printf '%s' "$TEDDY_ACCEPTANCE_PASSWORD" > /var/tmp/teddy-acceptance-password
-    umask "$saved_umask"
-    unset TEDDY_ACCEPTANCE_PASSWORD
+    umask "$saved_umask"; unset TEDDY_ACCEPTANCE_PASSWORD
     ls -l /var/tmp/teddy-acceptance-password
 
-最后一行应显示 `-rw-------` 且长度非零；不满足就先解决再继续。
+最后一行应显示 `-rw-------`，且长度等于你密码的字符数。
+
+**不要把两步整块粘贴**：`read` 从标准输入读取，粘贴进来的后续命令会被当成密码内容吃掉，于是文件里存进的是一串命令文本。
 
 `umask` 用完必须还原：它会持续影响该 shell 后续创建的所有文件，包括解压出来的发布包（会把 `bin/*.sh` 变成 700，而不是包内的 0755）。
 

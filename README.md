@@ -2,7 +2,7 @@
 
 Teddy 是一个面向 Spark on YARN 实时任务的轻量级管理平台，提供作业配置、提交、状态监控、告警和自动重启能力。
 
-生产升级流程见 [1.2.0 升级与验收](docs/1.2.0-upgrade.md)；首次从旧目录迁移的历史说明见 [第一阶段迁移](docs/phase1-upgrade.md)。需求阶段记录见 [1.2.0 计划](docs/1.2.0-plan.md)，版本变更见 [CHANGELOG](CHANGELOG.md)。计划中的历史时间窗和环境记录须在执行前重新核对。
+升级、验收与回滚流程见 [升级与验收](docs/upgrade.md)。版本变更与各版本的验收结论见 [CHANGELOG](CHANGELOG.md)；本机约定、当前进度和决策沿革见 `.local/memory.md`。
 
 ## 项目结构
 

@@ -2,12 +2,16 @@
 
 跨版本的升级手册。执行时把 `<版本>` 替换为实际版本号，例如 `1.2.1`。
 
+下文用 `$teddy_root` 表示部署根目录（即 `releases` 与 `shared` 的父目录），请按自己的部署布局设置：
+
+    teddy_root=<你的部署根目录>
+
 升级脚本只停止和启动 Teddy JVM、切换 `current` / `previous` 链接并检查健康状态，**不会停止或重新提交正在运行的 Spark application**。
 
 ## 部署形态
 
 ```text
-/usr/local/service/teddy/
+<部署根目录>/
 ├── current  -> releases/teddy-<版本>
 ├── previous -> releases/teddy-<上一版本>
 ├── releases/
@@ -50,12 +54,12 @@
     mkdir -p "$acceptance_root"
     TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
-    /usr/local/service/teddy/current/bin/acceptance.sh capture "$acceptance_root/before"
+    $teddy_root/current/bin/acceptance.sh capture "$acceptance_root/before"
 
 ## 预检与升级
 
-    /usr/local/service/teddy/releases/teddy-<版本>/bin/upgrade.sh --preflight
-    /usr/local/service/teddy/releases/teddy-<版本>/bin/upgrade.sh
+    $teddy_root/releases/teddy-<版本>/bin/upgrade.sh --preflight
+    $teddy_root/releases/teddy-<版本>/bin/upgrade.sh
 
 预检失败时不要绕过，先修复共享配置、目录权限或发布包问题再重新运行。
 
@@ -63,10 +67,10 @@
 
     TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
-    /usr/local/service/teddy/current/bin/acceptance.sh capture "$acceptance_root/after"
+    $teddy_root/current/bin/acceptance.sh capture "$acceptance_root/after"
 
     TEDDY_EXPECT_RELEASE=teddy-<版本> \
-    /usr/local/service/teddy/current/bin/acceptance.sh compare \
+    $teddy_root/current/bin/acceptance.sh compare \
     "$acceptance_root/before" "$acceptance_root/after"
 
 通过条件：
@@ -85,7 +89,7 @@
 
 升级脚本健康检查失败会自动恢复 `previous`。若脚本成功但验收对比失败，保留两个快照和日志，立即执行：
 
-    /usr/local/service/teddy/current/bin/rollback.sh
+    $teddy_root/current/bin/rollback.sh
 
 回滚后重新采集快照并与 `before` 对比。不要删除 `previous` 指向的版本或旧快照，直到问题定位完成；旧版本至少保留到新版本完成一个完整的状态刷新和自动重启扫描周期。
 

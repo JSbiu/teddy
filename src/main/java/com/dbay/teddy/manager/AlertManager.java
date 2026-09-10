@@ -86,54 +86,39 @@ public class AlertManager implements ApplicationRunner {
         }
 
         String state = job.getState();
+        long now = System.currentTimeMillis();
         AlertTrack track = tracks.get(jobId);
+
         if (track == null) {
             track = new AlertTrack(state);
             tracks.put(jobId, track);
             if (AlertPolicy.isFailure(state)) {
-                sendFailure(job, track);
+                sendFailure(job, track, now);
             }
             return;
         }
 
-        String previousState = track.lastState;
-        track.lastState = state;
-
-        if (AlertPolicy.isRecovered(previousState, state)) {
+        AlertTrack.Action action = track.observe(state, now);
+        if (action == AlertTrack.Action.FAILURE) {
+            sendFailure(job, track, now);
+        } else if (action == AlertTrack.Action.RECOVERY) {
             sendRecovered(job, track);
-            reset(track);
-            return;
-        }
-
-        if (!AlertPolicy.isFailure(state)) {
-            reset(track);
-            return;
-        }
-
-        boolean newFailure = !AlertPolicy.isFailure(previousState);
-        if (newFailure || System.currentTimeMillis() >= track.nextNotifyAt) {
-            sendFailure(job, track);
+            track.reset();
         }
     }
 
-    private void sendFailure(Job job, AlertTrack track) {
-        track.notifyCount += 1;
-        long intervalSeconds = AlertPolicy.repeatIntervalSeconds(track.notifyCount);
-        track.nextNotifyAt = System.currentTimeMillis() + TimeUnit.SECONDS.toMillis(intervalSeconds);
-
+    private void sendFailure(Job job, AlertTrack track, long now) {
+        long intervalSeconds = track.markNotified(now);
         boolean willRestart = AlertPolicy.willRestartAutomatically(job);
-        webHookSender.sendMarkdown(job.getWebhook(), failureMessage(job, track.notifyCount, intervalSeconds, willRestart));
-        logger.error("任务{}告警已发送（第{}次），剩余重启次数{}", job.getId(), track.notifyCount, job.getRetries());
+
+        webHookSender.sendMarkdown(job.getWebhook(),
+                failureMessage(job, track.notifyCount(), intervalSeconds, willRestart));
+        logger.error("任务{}告警已发送（第{}次），剩余重启次数{}", job.getId(), track.notifyCount(), job.getRetries());
     }
 
     private void sendRecovered(Job job, AlertTrack track) {
-        webHookSender.sendMarkdown(job.getWebhook(), recoveryMessage(job, track.notifyCount));
-        logger.info("任务{}已恢复，本次故障通知{}次", job.getId(), track.notifyCount);
-    }
-
-    private static void reset(AlertTrack track) {
-        track.notifyCount = 0;
-        track.nextNotifyAt = 0L;
+        webHookSender.sendMarkdown(job.getWebhook(), recoveryMessage(job, track.notifyCount()));
+        logger.info("任务{}已恢复，本次故障通知{}次", job.getId(), track.notifyCount());
     }
 
     private static String failureMessage(Job job, int notifyCount, long intervalSeconds, boolean willRestart) {
@@ -173,17 +158,5 @@ public class AlertManager implements ApplicationRunner {
 
     private static boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
-    }
-
-    /** 单个任务的告警跟踪状态。 */
-    private static final class AlertTrack {
-
-        private String lastState;
-        private int notifyCount;
-        private long nextNotifyAt;
-
-        private AlertTrack(String state) {
-            this.lastState = state;
-        }
     }
 }

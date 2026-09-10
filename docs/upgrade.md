@@ -4,12 +4,15 @@
 
 ## 开始前：设置变量
 
-下文用 `$teddy_root` 表示部署根目录（`releases` 与 `shared` 的父目录），`$teddy_release` 表示本次要升级到的版本目录，`$acceptance_root` 表示本次验收的临时目录。**这些变量必须先导出再执行后续命令**：它们由 shell 在命令执行前展开，未设置时会静默退化成 `/current/bin/acceptance.sh`、`/before` 这类错误路径，而不是报"变量未定义"。
+下文用 `$teddy_root` 表示部署根目录（`releases` 与 `shared` 的父目录），`$teddy_release` 表示本次要升级到的版本目录，`$staging` 表示放置发布包的上传暂存目录，`$acceptance_root` 表示本次验收的临时目录。**这些变量必须先导出再执行后续命令**：它们由 shell 在命令执行前展开，未设置时会静默退化成 `/current/bin/acceptance.sh`、`/before` 这类错误路径，而不是报"变量未定义"。
 
     export teddy_root=<你的部署根目录>
     export teddy_release="$teddy_root/releases/teddy-<版本>"
+    export staging=<你的上传暂存目录>
     export acceptance_root=/var/tmp/teddy-<版本>-$(date +%Y%m%d-%H%M%S)
     mkdir -p "$acceptance_root"
+
+`$staging` 只需满足：部署用户可读、**不在 `releases/` 与 `shared/` 之内**。上传工具（`rz`、`scp`、`sftp` 等）落到哪个目录由各自的机制决定，上传前先确认当前目录。
 
 不知道部署根目录时，从运行中的进程反查。进程里的路径形如 `<部署根目录>/releases/teddy-<版本>/teddy.jar`，去掉末尾三级即是根目录：
 
@@ -48,8 +51,9 @@
 
     .\tools\build-release.ps1
 
-上传 `teddy-<版本>-release.tar.gz` 与 `SHA256SUMS` 后，在服务器校验选中的包，解压到 `releases/`，再确认新版本目录成立：
+把 `teddy-<版本>-release.tar.gz` 与 `SHA256SUMS` 上传到 `$staging`（部署用户可读，且不在 `releases/`、`shared/` 之内），然后在服务器校验选中的包、解压到 `releases/`、确认新版本目录成立：
 
+    cd "$staging"
     grep -F 'teddy-<版本>-release.tar.gz' SHA256SUMS | sha256sum -c -
     tar -xzf teddy-<版本>-release.tar.gz -C "$teddy_root/releases/"
     ls "$teddy_release/bin/upgrade.sh"

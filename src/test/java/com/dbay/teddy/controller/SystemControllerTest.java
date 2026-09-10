@@ -1,6 +1,7 @@
 package com.dbay.teddy.controller;
 
 import com.dbay.teddy.service.JobService;
+import com.dbay.teddy.service.NotifyConfigService;
 import org.junit.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -18,7 +19,7 @@ public class SystemControllerTest {
         JobService jobService = mock(JobService.class);
         when(jobService.count()).thenReturn(5);
 
-        ResponseEntity<Map<String, Object>> response = new SystemController(jobService).health();
+        ResponseEntity<Map<String, Object>> response = controller(jobService).health();
 
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertEquals("UP", response.getBody().get("status"));
@@ -30,10 +31,14 @@ public class SystemControllerTest {
         JobService jobService = mock(JobService.class);
         when(jobService.count()).thenReturn(-1);
 
-        ResponseEntity<Map<String, Object>> response = new SystemController(jobService).health();
+        ResponseEntity<Map<String, Object>> response = controller(jobService).health();
 
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, response.getStatusCode());
         assertEquals("DOWN", response.getBody().get("status"));
         assertEquals("DOWN", response.getBody().get("database"));
+    }
+
+    private SystemController controller(JobService jobService) {
+        return new SystemController(jobService, mock(NotifyConfigService.class));
     }
 }

@@ -22,6 +22,7 @@ public class AppConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(authInterceptor)
-                .addPathPatterns("/job/**", "/jar/**", "/system/client-config");
+                .addPathPatterns("/job/**", "/jar/**", "/system/client-config",
+                        "/system/notify-config/**");
     }
 }

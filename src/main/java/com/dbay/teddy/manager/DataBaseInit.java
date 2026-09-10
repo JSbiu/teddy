@@ -1,6 +1,7 @@
 package com.dbay.teddy.manager;
 
 import com.dbay.teddy.service.JobService;
+import com.dbay.teddy.service.NotifyConfigService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,12 +21,19 @@ public class DataBaseInit implements ApplicationRunner {
     @Autowired
     private JobService jobService;
 
+    @Autowired
+    private NotifyConfigService notifyConfigService;
+
     @Override
     public void run(ApplicationArguments args) throws Exception {
         logger.info("check db env ...");
         if(jobService.count() < 0){
             logger.info("create table job.");
             jobService.create();
+        }
+        if (notifyConfigService.count() < 0) {
+            logger.info("create table notify_config.");
+            notifyConfigService.create();
         }
     }
 }

@@ -1,6 +1,15 @@
 /* Teddy 自有样式。
  * 本文件只新增 Teddy 自身的规则，不覆盖第三方样式表（bootstrap / jquery-ui）。 */
 
+/* 品牌名加大并加粗一档。Bootstrap 默认是 padding:15px 15px / font-size:18px / line-height:20px，
+ * 这里用 13 + 24 + 13 = 50 保持导航条原有高度不变。 */
+.navbar-brand {
+    padding: 13px 15px;
+    font-size: 20px;
+    line-height: 24px;
+    font-weight: 500;
+}
+
 /* 部署版本号：紧邻品牌名显示，作为次要信息弱化，不占用额外的导航高度。 */
 .navbar-brand .navbar-version {
     margin-left: .5em;

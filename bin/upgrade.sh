@@ -84,6 +84,22 @@ if [ ! -d "$new_release/lib" ]; then
     fail "发布目录缺少 lib 依赖目录"
 fi
 
+# 发布包根目录只含这四项。tar 解压是叠加的，不会删除归档里没有的文件，
+# 因此在同一目录重复解压会把上一次的残留带进运行版本，且毫无提示。
+# 这里检查的是刚解压、还没运行过的新目录，不会被运行时产物误伤。
+# 归档结构变化时需同步更新这里的名单。
+for entry in "$new_release"/* "$new_release"/.[!.]*; do
+    [ -e "$entry" ] || continue
+    entry_name=${entry##*/}
+    case "$entry_name" in
+        bin|conf|lib|teddy.jar)
+            ;;
+        *)
+            fail "发布目录存在归档之外的条目：$entry（请删除该版本目录后重新解压）"
+            ;;
+    esac
+done
+
 env_file=${TEDDY_ENV_FILE:-"$service_root/shared/teddy.env"}
 if [ ! -f "$env_file" ]; then
     fail "找不到共享环境文件 $env_file"
@@ -428,6 +444,7 @@ fi
 if [ "$operation" = "--preflight" ]; then
     echo "预检查通过"
     echo "新版本：$new_release"
+    echo "当前版本：${old_release:-无（首次部署）}"
     echo "当前模式：$old_mode"
     echo "共享环境：$env_file"
     echo "健康检查：$health_url"

@@ -104,7 +104,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 | 全量隔离单元测试 | `mvn -DskipTests=false test` |
 | 编译检查 | `mvn -DskipTests compile`（不代表测试或发布包验证） |
 | 完整发布构建及产物自检 | `.\tools\build-release.ps1` |
-| 已有产物自检 | `.\tools\Test-ReleaseArtifact.ps1`（需当前版本的发布包和校验和） |
+| 已有产物自检 | `.\tools\Test-ReleaseArtifact.ps1`（需 target 下当前版本的 jar 与两个发布归档） |
 | 升级脚本隔离演练 | `.\tools\test-upgrade.ps1`（需先生成发布 ZIP） |
 | 验收脚本隔离演练 | `.\tools\test-acceptance.ps1`（需已有 `target/` 目录） |
 

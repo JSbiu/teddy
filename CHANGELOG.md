@@ -2,7 +2,7 @@
 
 本项目遵循 Semantic Versioning，正式版本使用 vMAJOR.MINOR.PATCH Git 标签。
 
-## 1.2.3 - Unreleased
+## 1.2.3 - 2026-09-11
 
 ### Fixed
 

@@ -51,17 +51,14 @@
 
     .\tools\build-release.ps1
 
-把 `teddy-<版本>-release.tar.gz` 与 `SHA256SUMS` 上传到 `$staging`（部署用户可读，且不在 `releases/`、`shared/` 之内），然后在服务器校验选中的包、解压到 `releases/`、确认新版本目录成立：
+把 `teddy-<版本>-release.tar.gz` 上传到 `$staging`（部署用户可读，且不在 `releases/`、`shared/` 之内），然后在服务器解压到 `releases/`、确认新版本目录成立：
 
     cd "$staging"
-    grep -F 'teddy-<版本>-release.tar.gz' SHA256SUMS | sha256sum -c -
     umask 022
     tar -xzf teddy-<版本>-release.tar.gz -C "$teddy_root/releases/"
     ls -l "$teddy_release/bin/upgrade.sh"
 
 最后一行权限应为 `-rwxr-xr-x`。若解压前 shell 里留着 077 之类的 `umask`，脚本会变成 700，与包内记录的 0755 不符；此时删掉版本目录、设好 `umask` 重新解压即可。
-
-1.2.1 起的 `SHA256SUMS` 为 LF 行尾，可直接校验。更早的发布包使用 CRLF，需要在管道中加 `| tr -d '\r'` 才能通过。
 
 **升级前后的验收快照都要用新包里的脚本**（`"$teddy_release/bin/acceptance.sh"`），不要用 `$teddy_root/current/bin/acceptance.sh`：`current` 在升级前仍指向旧版本，旧包里的脚本可能有新包已修复的缺陷。1.2.1 之前的脚本在登录时提交的是 `username`，而后端读取 `userName`，因此登录必然被拒——用旧脚本会误判成密码错误。
 

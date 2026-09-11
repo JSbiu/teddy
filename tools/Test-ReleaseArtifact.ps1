@@ -17,40 +17,12 @@ $releaseName = "teddy-$version"
 $zipPath = Join-Path $targetRoot "$releaseName-release.zip"
 $tarPath = Join-Path $targetRoot "$releaseName-release.tar.gz"
 $thinJarPath = Join-Path $targetRoot "$releaseName.jar"
-$checksumPath = Join-Path $targetRoot 'SHA256SUMS'
 $expectedArtifacts = @($thinJarPath, $tarPath, $zipPath)
 
-foreach ($artifact in @($expectedArtifacts + $checksumPath)) {
+foreach ($artifact in $expectedArtifacts) {
     if (-not (Test-Path -LiteralPath $artifact -PathType Leaf)) {
         throw "Missing release artifact: $artifact"
     }
-}
-
-$checksumBytes = [System.IO.File]::ReadAllBytes($checksumPath)
-if ($checksumBytes -contains 13) {
-    throw 'SHA256SUMS contains CR bytes; it must use LF endings so `sha256sum -c` works on Linux.'
-}
-
-$checksumEntries = @{}
-foreach ($line in Get-Content -LiteralPath $checksumPath) {
-    if ($line -notmatch '^([0-9a-fA-F]{64})\s{2}(.+)$') {
-        throw "Invalid SHA256SUMS line: $line"
-    }
-    $checksumEntries[$Matches[2]] = $Matches[1].ToLowerInvariant()
-}
-
-foreach ($artifact in $expectedArtifacts) {
-    $name = Split-Path -Leaf $artifact
-    if (-not $checksumEntries.ContainsKey($name)) {
-        throw "SHA256SUMS does not contain $name"
-    }
-    $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact).Hash.ToLowerInvariant()
-    if ($checksumEntries[$name] -ne $actual) {
-        throw "SHA-256 mismatch for $name"
-    }
-}
-if ($checksumEntries.Count -ne $expectedArtifacts.Count) {
-    throw 'SHA256SUMS contains unexpected entries.'
 }
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -223,7 +195,6 @@ try {
 [PSCustomObject]@{
     Version = $version
     Files = $zipEntries.Count
-    Checksums = 'passed'
     ArchiveParity = 'passed'
     ShellScripts = 'passed'
     ExampleConfiguration = 'passed'

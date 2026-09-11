@@ -33,24 +33,10 @@ try {
         throw "Expected ZIP and tar.gz release archives, found $($releaseArchives.Count)."
     }
 
-    $checksumLines = foreach ($artifact in $artifacts) {
-        $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.FullName
-        '{0}  {1}' -f $hash.Hash.ToLowerInvariant(), $artifact.Name
-    }
-
-    # LF endings so the checksum file validates with `sha256sum -c` on Linux.
-    $checksumPath = Join-Path $targetDirectory 'SHA256SUMS'
-    [System.IO.File]::WriteAllText(
-        $checksumPath,
-        (($checksumLines -join "`n") + "`n"),
-        [System.Text.UTF8Encoding]::new($false)
-    )
-
     $artifactTest = Join-Path $PSScriptRoot 'Test-ReleaseArtifact.ps1'
     & $artifactTest -TargetDirectory $targetDirectory
 
     $artifacts | Select-Object Name, Length, FullName
-    Get-Item -LiteralPath $checksumPath | Select-Object Name, Length, FullName
 } finally {
     Pop-Location
 }

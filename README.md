@@ -85,15 +85,14 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 
     .\tools\build-release.ps1
 
-脚本执行干净构建和测试，并在 target 目录生成带版本号的 thin-JAR、ZIP、tar.gz 和 SHA256SUMS。随后自动检查：
+脚本执行干净构建和测试，并在 target 目录生成带版本号的 thin-JAR、ZIP、tar.gz。随后自动检查：
 
 - ZIP 与 tar.gz 内容一致且目录版本正确。
 - bin 下脚本为 LF、shell 语法有效，tar 权限为 0755。
 - 发布包只包含三个无密钥示例配置。
 - teddy.jar 的 Main-Class 和 Class-Path 与 lib 目录一致。
-- SHA-256 校验和全部匹配。
 
-服务器接收文件后必须先按 SHA256SUMS 校验选中的发布包，再解压到 releases。
+服务器接收文件后解压到 releases，完整流程见 `docs/upgrade.md`。
 
 ## 本地验证
 

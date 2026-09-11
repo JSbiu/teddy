@@ -18,11 +18,12 @@
 
     ps -ef | grep -F teddy.jar | grep -v grep
 
-设置后先确认部署根目录成立：
+设置后立刻确认它们都已生效——下面的写法会在任何一个为空时报错退出，避免路径静默退化：
 
+    : "${teddy_root:?未设置}" "${teddy_release:?未设置}" "${staging:?未设置}" "${acceptance_root:?未设置}"
     ls "$teddy_root/current/bin/acceptance.sh"
 
-`$teddy_release` 指向新解压的版本目录，要到"发布包"一节解压完成后才存在。
+最后一行应打印出脚本路径。`$teddy_release` 指向新解压的版本目录，要到"发布包"一节解压完成后才存在。
 
 `acceptance.sh` 会从自身位置反推部署根目录，因此 `TEDDY_SERVICE_ROOT` 通常无需设置，`$teddy_root` 只用于拼接脚本路径。
 
@@ -55,10 +56,13 @@
 
     cd "$staging"
     umask 022
+    rm -rf "$teddy_release"
     tar -xzf teddy-<版本>-release.tar.gz -C "$teddy_root/releases/"
     ls -l "$teddy_release/bin/upgrade.sh"
 
-最后一行权限应为 `-rwxr-xr-x`。若解压前 shell 里留着 077 之类的 `umask`，脚本会变成 700，与包内记录的 0755 不符；此时删掉版本目录、设好 `umask` 重新解压即可。
+**先删再解压是标准步骤，不要省。** `tar` 解压是叠加的，不会删除归档里没有的文件，在同一目录重复解压会把上一次的残留带进运行版本，而且没有任何提示。升级脚本会拒绝含归档外条目的版本目录；真出现了，按上面这组命令重来。
+
+最后一行权限应为 `-rwxr-xr-x`。若解压前 shell 里留着 077 之类的 `umask`，脚本会变成 700，与包内记录的 0755 不符；同样删掉版本目录、设好 `umask` 重新解压。
 
 **升级前后的验收快照都要用新包里的脚本**（`"$teddy_release/bin/acceptance.sh"`），不要用 `$teddy_root/current/bin/acceptance.sh`：`current` 在升级前仍指向旧版本，旧包里的脚本可能有新包已修复的缺陷。1.2.1 之前的脚本在登录时提交的是 `username`，而后端读取 `userName`，因此登录必然被拒——用旧脚本会误判成密码错误。
 
@@ -68,32 +72,25 @@
 
 验收脚本只调用健康接口、登录/退出、任务列表和 `yarn application -status`，不调用任务提交、停止或重启接口。
 
-先准备一个权限为 600、末尾无换行的临时密码文件。**文件内容必须是登录 Teddy 网页时输入的明文密码**，不是共享配置里 `auth.password-hash` 的哈希值——哈希格式为 `pbkdf2-sha256$迭代数$盐$密钥`，长度约 90 字节，误填会让登录一直被拒。
+验收脚本需要登录 Teddy。**推荐把明文密码放进环境变量**：脚本会自行落成 600 权限的临时文件，保证明文不出现在 `curl` 的命令行参数或子进程环境里，并在结束时删除——你不需要自己建文件。
 
 **第 1 步，输入密码。** 执行后光标会停住等你输入，**屏幕上不显示任何字符**，输完按回车：
 
-    read -r -s -p 'Teddy 登录密码: ' TEDDY_ACCEPTANCE_PASSWORD; echo
+    read -r -s -p 'Teddy 登录密码: ' TEDDY_AUTH_PASSWORD; echo
 
-**第 2 步，写入文件并检查**：
+**这一步必须单独执行**：`read` 从标准输入读，和其他命令整块粘贴时，后续命令行会被当成密码内容吃掉。
 
-    saved_umask=$(umask); umask 077
-    printf '%s' "$TEDDY_ACCEPTANCE_PASSWORD" > /var/tmp/teddy-acceptance-password
-    umask "$saved_umask"; unset TEDDY_ACCEPTANCE_PASSWORD
-    ls -l /var/tmp/teddy-acceptance-password
+然后采集升级前快照。`TEDDY_EXPECT_APPLICATION_COUNT` 应填最近一次验收确认的基线数量；实际数量已变化时先查清原因再继续：
 
-最后一行应显示 `-rw-------`，且长度等于你密码的字符数。
-
-**不要把两步整块粘贴**：`read` 从标准输入读取，粘贴进来的后续命令会被当成密码内容吃掉，于是文件里存进的是一串命令文本。
-
-`umask` 用完必须还原：它会持续影响该 shell 后续创建的所有文件，包括解压出来的发布包（会把 `bin/*.sh` 变成 700，而不是包内的 0755）。
-
-采集升级前快照。`TEDDY_EXPECT_APPLICATION_COUNT` 应填最近一次验收确认的基线数量；实际数量已变化时先查清原因再继续：
-
-    TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
+    TEDDY_AUTH_PASSWORD="$TEDDY_AUTH_PASSWORD" \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
     "$teddy_release/bin/acceptance.sh" capture "$acceptance_root/before"
 
-脚本报"登录被拒"时，先确认执行的是新包里的脚本（见"发布包"一节），再怀疑密码或共享配置里的 `auth.username`。
+密码以命令行前缀传入、而不是 `export`，其他命令就不会继承到它。
+
+若更习惯自己准备密码文件，改用 `TEDDY_AUTH_PASSWORD_FILE`：权限 600、末尾无换行，内容必须是**登录 Teddy 网页时输入的明文密码**，不是共享配置里 `auth.password-hash` 的哈希值——哈希形如 `pbkdf2-sha256$迭代数$盐$密钥`，约 90 字节，误填会让登录一直被拒。这条路要自己控制 `umask` 并在用完后删除文件；`umask` 留在 shell 里会连解压出来的发布包一起压成 700（见上一节）。
+
+脚本报"登录被拒"时，先确认执行的是新包里的脚本（见"发布包"一节），再怀疑密码或共享配置里的 `auth.username`。报"密码文件不存在"时脚本会带上它查找的路径。
 
 ## 预检与升级
 
@@ -104,7 +101,7 @@
 
 ## 升级后验收
 
-    TEDDY_AUTH_PASSWORD_FILE=/var/tmp/teddy-acceptance-password \
+    TEDDY_AUTH_PASSWORD="$TEDDY_AUTH_PASSWORD" \
     TEDDY_EXPECT_APPLICATION_COUNT=<数量> \
     "$teddy_release/bin/acceptance.sh" capture "$acceptance_root/after"
 
@@ -120,8 +117,15 @@
 - `current` 指向新版本，`previous` 指向可回滚的上一版本。
 - 无重复提交、误重启或异常告警。
 
-验收完成后删除临时明文密码文件：
+页面内容没有随发布更新时，先查静态资源的验证器是否随本次发布变化：
 
+    curl -sI http://127.0.0.1:18081/login.html | grep -i last-modified
+
+若所有静态页面的 `Last-Modified` 跨版本完全不变，说明构建时把所有条目的时间戳归一化成了一个固定值，浏览器每次条件请求都会得到 304，页面只能靠硬刷新才更新。
+
+验收完成后清掉凭据：
+
+    unset TEDDY_AUTH_PASSWORD
     rm -f /var/tmp/teddy-acceptance-password
 
 ## 失败处理与回滚

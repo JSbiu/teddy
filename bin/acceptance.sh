@@ -127,13 +127,40 @@ fi
 
 cookie_file=${TEDDY_COOKIE_FILE:-}
 owned_cookie=0
+password_file=
+owned_password=0
+
+# 提前注册，使登录失败等中途退出也能清掉临时文件。
+cleanup() {
+    if [ "$owned_password" -eq 1 ]; then
+        rm -f "$password_file"
+    fi
+    if [ "$owned_cookie" -eq 1 ]; then
+        curl --silent --show-error --cookie "$cookie_file"             -X POST "$base_url/teddy/logout" >/dev/null 2>&1 || true
+        rm -f "$cookie_file"
+    fi
+}
+trap cleanup EXIT HUP INT TERM
+
 if [ "$skip_login" -eq 1 ]; then
     cookie_file=
 elif [ -z "$cookie_file" ]; then
     password_file=${TEDDY_AUTH_PASSWORD_FILE:-}
-    [ -n "$password_file" ] ||
-        fail "set TEDDY_AUTH_PASSWORD_FILE or TEDDY_COOKIE_FILE"
-    [ -f "$password_file" ] || fail "password file does not exist"
+    password_value=${TEDDY_AUTH_PASSWORD:-}
+    if [ -n "$password_file" ]; then
+        [ -f "$password_file" ] ||
+            fail "password file does not exist: $password_file"
+    elif [ -n "$password_value" ]; then
+        # 先落到仅本人可读的临时文件，再按原方式交给 curl 的 --data-urlencode @file，
+        # 免得明文出现在 curl 的命令行参数或子进程环境里。
+        password_file=$(mktemp "${TMPDIR:-/tmp}/teddy-acceptance-password.XXXXXX")
+        chmod 600 "$password_file"
+        printf '%s' "$password_value" >"$password_file"
+        owned_password=1
+        unset TEDDY_AUTH_PASSWORD password_value
+    else
+        fail "set TEDDY_AUTH_PASSWORD_FILE or TEDDY_AUTH_PASSWORD (or TEDDY_COOKIE_FILE)"
+    fi
     cookie_file=$(mktemp "${TMPDIR:-/tmp}/teddy-acceptance-cookie.XXXXXX")
     chmod 600 "$cookie_file"
     owned_cookie=1
@@ -146,14 +173,6 @@ elif [ -z "$cookie_file" ]; then
 else
     [ -f "$cookie_file" ] || fail "cookie file does not exist"
 fi
-
-cleanup() {
-    if [ "$owned_cookie" -eq 1 ]; then
-        curl --silent --show-error --cookie "$cookie_file"             -X POST "$base_url/teddy/logout" >/dev/null 2>&1 || true
-        rm -f "$cookie_file"
-    fi
-}
-trap cleanup EXIT HUP INT TERM
 
 health_response=$(curl --fail --silent --show-error "$health_url") ||
     fail "Teddy health check failed"

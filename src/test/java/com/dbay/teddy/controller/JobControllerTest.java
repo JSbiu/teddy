@@ -26,7 +26,7 @@ public class JobControllerTest {
         assertPostOnly(JobController.class.getMethod("delete", Integer.class));
         assertPostOnly(JobController.class.getMethod("stop", Integer.class));
         assertPostOnly(JobController.class.getMethod("restart", Integer.class));
-        assertPostOnly(ResourceController.class.getMethod("upload", MultipartFile.class));
+        assertPostOnly(ResourceController.class.getMethod("upload", MultipartFile.class, String.class));
         assertPostOnly(ResourceController.class.getMethod("delete", String.class));
     }
 

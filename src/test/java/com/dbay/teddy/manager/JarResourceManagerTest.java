@@ -1,6 +1,7 @@
 package com.dbay.teddy.manager;
 
 import com.dbay.teddy.entity.JarResource;
+import com.dbay.teddy.entity.JarSaveResult;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -19,6 +20,7 @@ import java.util.Locale;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -33,7 +35,7 @@ public class JarResourceManagerTest {
         MockMultipartFile upload = new MockMultipartFile(
                 "file", "streaming.jar", "application/java-archive", "jar-data".getBytes(StandardCharsets.UTF_8));
 
-        List<JarResource> afterSave = resources.save(upload);
+        List<JarResource> afterSave = resources.save(upload, null).getJars();
 
         assertEquals(1, afterSave.size());
         Path saved = libHome.resolve("streaming.jar");
@@ -86,9 +88,87 @@ public class JarResourceManagerTest {
         JarResourceManager resources = new JarResourceManager(libHome);
 
         assertRejected(() -> resources.save(new MockMultipartFile(
-                "file", "../escape.jar", "application/java-archive", new byte[]{1})));
+                "file", "../escape.jar", "application/java-archive", new byte[]{1}), null));
         assertRejected(() -> resources.save(new MockMultipartFile(
-                "file", "notes.txt", "text/plain", new byte[]{1})));
+                "file", "notes.txt", "text/plain", new byte[]{1}), null));
+        assertRejected(() -> resources.save(new MockMultipartFile(
+                "file", "streaming.jar", "application/java-archive", new byte[]{1}), "../escape.jar"));
+    }
+
+    /** 上传时就能定名，是因为文件名是任务引用 JAR 的键，事后再改会牵连任务配置。 */
+    @Test
+    public void savesUnderTheRequestedNameInsteadOfTheUploadedOne() throws Exception {
+        Path libHome = temporaryFolder.newFolder("named-jars").toPath();
+        JarResourceManager resources = new JarResourceManager(libHome);
+        MockMultipartFile upload = new MockMultipartFile(
+                "file", "streaming-1.0.2.jar", "application/java-archive",
+                "jar-data".getBytes(StandardCharsets.UTF_8));
+
+        List<JarResource> afterSave = resources.save(upload, "streaming.jar").getJars();
+
+        assertEquals(1, afterSave.size());
+        assertEquals("streaming.jar", afterSave.get(0).getName());
+        assertTrue(Files.exists(libHome.resolve("streaming.jar")));
+        assertFalse(Files.exists(libHome.resolve("streaming-1.0.2.jar")));
+    }
+
+    /** 覆盖是更新 JAR 的正常途径，不阻断，但替换前的属性必须能被调用方拿到。 */
+    @Test
+    public void reportsTheReplacedFileAndItsOriginalSize() throws Exception {
+        Path libHome = temporaryFolder.newFolder("replaced-jars").toPath();
+        try (RandomAccessFile existing = new RandomAccessFile(
+                Files.createFile(libHome.resolve("streaming.jar")).toFile(), "rw")) {
+            existing.setLength(12L * 1024 * 1024);
+        }
+        JarResourceManager resources = new JarResourceManager(libHome);
+
+        JarSaveResult result = resources.save(new MockMultipartFile(
+                "file", "streaming.jar", "application/java-archive",
+                "new-content".getBytes(StandardCharsets.UTF_8)), null);
+
+        assertEquals("streaming.jar", result.getOverwritten().getName());
+        assertEquals("12.0 MB", result.getOverwritten().getSizeText());
+        assertEquals("11 B", result.getJars().get(0).getSizeText());
+    }
+
+    @Test
+    public void leavesTheReplacedFileNullWhenNothingIsReplaced() throws Exception {
+        Path libHome = temporaryFolder.newFolder("fresh-jars").toPath();
+        JarResourceManager resources = new JarResourceManager(libHome);
+
+        JarSaveResult result = resources.save(new MockMultipartFile(
+                "file", "streaming.jar", "application/java-archive", new byte[]{1}), null);
+
+        assertNull(result.getOverwritten());
+        assertEquals(1, result.getJars().size());
+    }
+
+    /**
+     * 中转文件不以 .jar 结尾，列表里看不到，进程被杀后没人会清理——只能靠启动时收。
+     */
+    @Test
+    public void discardsAbandonedUploadTemporariesOnStartup() throws Exception {
+        Path libHome = temporaryFolder.newFolder("stale-uploads").toPath();
+        Path stale = Files.write(libHome.resolve(".teddy-upload-1234.tmp"), new byte[]{1});
+        Path kept = Files.write(libHome.resolve("streaming.jar"), new byte[]{1});
+        Path unrelated = Files.write(libHome.resolve("notes.txt"), new byte[]{1});
+
+        new JarResourceManager(libHome);
+
+        assertFalse(Files.exists(stale));
+        assertTrue(Files.exists(kept));
+        assertTrue(Files.exists(unrelated));
+    }
+
+    @Test
+    public void refusesToReplaceADirectoryNamedLikeAJar() throws Exception {
+        Path libHome = temporaryFolder.newFolder("directory-collision").toPath();
+        Files.createDirectory(libHome.resolve("streaming.jar"));
+        JarResourceManager resources = new JarResourceManager(libHome);
+
+        assertRejected(() -> resources.save(new MockMultipartFile(
+                "file", "streaming.jar", "application/java-archive", new byte[]{1}), null));
+        assertTrue(Files.isDirectory(libHome.resolve("streaming.jar")));
     }
 
     @Test

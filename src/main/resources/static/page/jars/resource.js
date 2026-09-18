@@ -12,11 +12,19 @@ $(function () {
 
     var $fileInput = $('#inputfile');
     var $uploadBtn = $('#uploadFileBtn');
+    var $uploadName = $('#uploadName');
 
     loadResources();
 
     $uploadBtn.prop('disabled', true);
-    $fileInput.on('change', refreshUploadButton);
+    $fileInput.on('change', function () {
+        var files = $fileInput.get(0).files;
+        if (files && files.length > 0) {
+            // 换文件等于重新开始，目标名跟着新文件走。
+            $uploadName.val(files[0].name);
+        }
+        refreshUploadButton();
+    });
 
     $uploadBtn.on('click', function () {
         var files = $fileInput.get(0).files;
@@ -51,6 +59,8 @@ $(function () {
     function upload(file) {
         var formData = new FormData();
         formData.append("file", file);
+        formData.append("name", $.trim($uploadName.val()));
+        setBusy(true);
         $.ajax({
             url: "/jar/upload",
             type: "POST",
@@ -63,7 +73,17 @@ $(function () {
             error: function () {
                 showMessage('danger', '上传请求失败');
             }
+        }).always(function () {
+            setBusy(false);
         });
+    }
+
+    // 几百 MB 的包要传几十秒，期间必须挡住重复提交。
+    function setBusy(busy) {
+        $uploadBtn.prop('disabled', busy).text(busy ? '上传中…' : '提交');
+        if (!busy) {
+            refreshUploadButton();
+        }
     }
 
     function remove(path) {
@@ -75,9 +95,11 @@ $(function () {
     }
 
     // 成功与失败都要有反馈：此前失败分支什么都不做，页面看起来像没反应。
+    // 覆盖了同名文件时用警告色显示后端给出的说明，而不是一句笼统的"上传成功"。
     function report(result, successText) {
         if (result && result.state === "success") {
-            showMessage('success', successText);
+            var notice = result.data ? result.data.notice : null;
+            showMessage(notice ? 'warning' : 'success', notice || successText);
             clearSelection();
         } else {
             showMessage('danger', errorText(result, '操作失败'));
@@ -96,6 +118,7 @@ $(function () {
         } else {
             $fileInput.val('');
         }
+        $uploadName.val('');
         refreshUploadButton();
     }
 
@@ -145,7 +168,7 @@ $(function () {
 
     function showMessage(type, text) {
         $('#alertBox')
-            .removeClass('alert-success alert-danger alert-info')
+            .removeClass('alert-success alert-danger alert-info alert-warning')
             .addClass('alert-' + type);
         $('#alertP').text(text);
         $('#alertDiv').show();

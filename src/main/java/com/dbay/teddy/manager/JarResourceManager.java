@@ -1,7 +1,10 @@
 package com.dbay.teddy.manager;
 
 import com.dbay.teddy.entity.JarResource;
+import com.dbay.teddy.entity.JarSaveResult;
 import com.dbay.teddy.utils.TeddyConf;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -25,6 +28,12 @@ import java.util.stream.Stream;
 
 @Service
 public class JarResourceManager {
+    private static final Logger logger = LoggerFactory.getLogger(JarResourceManager.class);
+
+    /** 上传中转文件的前缀与后缀，同时也是启动清理的匹配条件。 */
+    private static final String UPLOAD_TEMP_PREFIX = ".teddy-upload-";
+    private static final String UPLOAD_TEMP_SUFFIX = ".tmp";
+
     private static final long KILOBYTE = 1024L;
     private static final long MEGABYTE = KILOBYTE * 1024L;
     private static final long GIGABYTE = MEGABYTE * 1024L;
@@ -50,6 +59,7 @@ public class JarResourceManager {
         } catch (IOException e) {
             throw new IllegalStateException("Unable to resolve lib.home", e);
         }
+        discardAbandonedUploads();
     }
 
     /** 当前管理的目录，供接口回传给页面，让使用者知道文件从哪里来。 */
@@ -105,23 +115,39 @@ public class JarResourceManager {
                 Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()));
     }
 
-    public List<JarResource> save(MultipartFile file) {
+    /**
+     * 保存上传的 JAR。
+     *
+     * requestedName 为空时使用上传时的原始文件名。允许调用方指定名字，是因为
+     * 文件名就是任务引用的键：上传前定好，比上传后再改名省事——改名会同时影响
+     * 已经保存了那个名字的任务配置。
+     *
+     * 同名文件会被替换（这是更新 JAR 的正常途径，不阻断），但替换前的内容随结果
+     * 一并返回，由调用方决定如何提示。
+     */
+    public JarSaveResult save(MultipartFile file, String requestedName) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("A non-empty JAR file is required");
         }
-        String originalName = file.getOriginalFilename();
-        validateJarName(originalName);
-        Path target = resolveDirectChild(originalName);
+        String targetName = firstNonEmpty(requestedName, file.getOriginalFilename());
+        validateJarName(targetName);
+        Path target = resolveDirectChild(targetName);
         if (Files.isSymbolicLink(target)) {
             throw new IllegalArgumentException("Symbolic-link targets are not allowed");
         }
+        if (Files.isDirectory(target, LinkOption.NOFOLLOW_LINKS)) {
+            throw new IllegalArgumentException("A directory already exists with the requested name");
+        }
+        JarResource overwritten = Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)
+                ? toResource(target)
+                : null;
 
         Path temporary = null;
         try {
             if (!Files.isWritable(libHome)) {
                 throw new IllegalStateException("lib.home is not writable");
             }
-            temporary = Files.createTempFile(libHome, ".teddy-upload-", ".tmp");
+            temporary = Files.createTempFile(libHome, UPLOAD_TEMP_PREFIX, UPLOAD_TEMP_SUFFIX);
             try (InputStream input = file.getInputStream()) {
                 Files.copy(input, temporary, StandardCopyOption.REPLACE_EXISTING);
             }
@@ -132,7 +158,7 @@ public class JarResourceManager {
                 Files.move(temporary, target, StandardCopyOption.REPLACE_EXISTING);
             }
             temporary = null;
-            return listJars();
+            return new JarSaveResult(listJars(), overwritten);
         } catch (IOException e) {
             throw new IllegalStateException("Unable to save JAR resource", e);
         } finally {
@@ -143,6 +169,46 @@ public class JarResourceManager {
                 }
             }
         }
+    }
+
+    /**
+     * 丢弃上次进程留下的上传中转文件。
+     *
+     * 上传是先写中转文件再原子移动，进程被 kill 或磁盘写满时中转文件会留下。
+     * 它不以 .jar 结尾，因此不会出现在资源列表里，也就没人会去清理——只能在这里收。
+     * 启动时不可能有正在进行的上传，所以此刻删除是安全的。
+     */
+    private void discardAbandonedUploads() {
+        List<Path> abandoned;
+        try (Stream<Path> paths = Files.list(libHome)) {
+            abandoned = paths
+                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
+                    .filter(this::isAbandonedUpload)
+                    .collect(Collectors.toList());
+        } catch (IOException e) {
+            logger.warn("Unable to scan {} for abandoned upload files", libHome, e);
+            return;
+        }
+        for (Path path : abandoned) {
+            try {
+                Files.deleteIfExists(path);
+                logger.warn("Discarded abandoned upload file: {}", path.getFileName());
+            } catch (IOException e) {
+                logger.warn("Unable to discard abandoned upload file: {}", path, e);
+            }
+        }
+    }
+
+    private boolean isAbandonedUpload(Path path) {
+        String fileName = path.getFileName().toString();
+        return fileName.startsWith(UPLOAD_TEMP_PREFIX) && fileName.endsWith(UPLOAD_TEMP_SUFFIX);
+    }
+
+    private static String firstNonEmpty(String preferred, String fallback) {
+        if (preferred != null && !preferred.trim().isEmpty()) {
+            return preferred.trim();
+        }
+        return fallback;
     }
 
     public Path resolveForLaunch(String jar) {

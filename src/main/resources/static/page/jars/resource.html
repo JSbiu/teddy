@@ -50,6 +50,16 @@
             <div class="row" style="margin:20px;">
                 <input type="file" id="inputfile" class="dropify" data-default-file="" />
             </div>
+            <div class="row" style="margin:20px 20px 0;">
+                <div class="col-md-6" style="padding-left:0;">
+                    <label for="uploadName" style="font-weight:normal;">保存为</label>
+                    <input type="text" id="uploadName" class="form-control" maxlength="120"
+                           placeholder="留空则使用原文件名，例如 Streaming.jar" />
+                    <p class="text-muted" style="margin:6px 0 0;">
+                        文件名就是任务引用 JAR 的键，上传后改名会连带影响任务配置，建议在这里一次定好。
+                    </p>
+                </div>
+            </div>
             <div class="row" style="margin:20px;">
                 <button id="uploadFileBtn" class="btn btn-default">提交</button>
             </div>

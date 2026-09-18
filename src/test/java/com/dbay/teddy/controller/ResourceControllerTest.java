@@ -1,11 +1,13 @@
 package com.dbay.teddy.controller;
 
 import com.dbay.teddy.entity.JarResource;
+import com.dbay.teddy.entity.JarSaveResult;
 import com.dbay.teddy.entity.Job;
 import com.dbay.teddy.manager.JarResourceManager;
 import com.dbay.teddy.service.JobService;
 import com.dbay.teddy.utils.Response;
 import org.junit.Test;
+import org.springframework.mock.web.MockMultipartFile;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -13,7 +15,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -86,6 +90,44 @@ public class ResourceControllerTest {
         assertEquals(jars, data.get("jars"));
     }
 
+    /**
+     * 覆盖同名文件不阻断（那是更新 JAR 的正常途径），但必须让使用者看到替换掉了什么、
+     * 且知道有哪些任务在引用这个文件名。
+     */
+    @Test
+    public void uploadReportsTheReplacedJarAndItsReferencingJobs() {
+        JarResourceManager resources = mock(JarResourceManager.class);
+        when(resources.save(any(), any())).thenReturn(new JarSaveResult(
+                Collections.singletonList(new JarResource(
+                        "DataLanding.jar", LIB_HOME + "/DataLanding.jar", "13.1 MB", "2026-09-18 10:30:00")),
+                new JarResource(
+                        "DataLanding.jar", LIB_HOME + "/DataLanding.jar", "12.3 MB", "2026-09-11 16:15:56")));
+        when(resources.getLibHome()).thenReturn(LIB_HOME);
+        ResourceController controller = new ResourceController(
+                resources, jobs(job("DataLanding", "DataLanding.jar")));
+
+        Response response = controller.upload(file(), "DataLanding.jar");
+
+        assertEquals("success", response.getState());
+        String notice = String.valueOf(((Map<?, ?>) response.getData()).get("notice"));
+        assertTrue(notice.contains("12.3 MB"));
+        assertTrue(notice.contains("13.1 MB"));
+        assertTrue(notice.contains("DataLanding"));
+    }
+
+    @Test
+    public void uploadWithoutReplacementCarriesNoNotice() {
+        JarResourceManager resources = mock(JarResourceManager.class);
+        when(resources.save(any(), any())).thenReturn(new JarSaveResult(Collections.emptyList(), null));
+        when(resources.getLibHome()).thenReturn(LIB_HOME);
+        ResourceController controller = new ResourceController(resources, jobs());
+
+        Response response = controller.upload(file(), "");
+
+        assertEquals("success", response.getState());
+        assertFalse(((Map<?, ?>) response.getData()).containsKey("notice"));
+    }
+
     private static JobService jobs(Job... jobs) {
         JobService jobService = mock(JobService.class);
         when(jobService.findAll()).thenReturn(Arrays.asList(jobs));
@@ -102,6 +144,11 @@ public class ResourceControllerTest {
         when(job.getName()).thenReturn(name);
         when(job.getAppResource()).thenReturn(appResource);
         return job;
+    }
+
+    private static MockMultipartFile file() {
+        return new MockMultipartFile(
+                "file", "DataLanding.jar", "application/java-archive", new byte[]{1});
     }
 
     private static String text(Response response) {

@@ -32,16 +32,37 @@ $(function () {
             showMessage('danger', '请先选择要上传的 JAR 文件');
             return;
         }
+        // 后端的文件名校验消息是英文的，这里先挡一道并给出中文说明。
+        var nameError = validateUploadName($.trim($uploadName.val()));
+        if (nameError) {
+            showMessage('danger', nameError);
+            $uploadName.focus();
+            return;
+        }
         upload(files[0]);
     });
 
     $('#c3_body').on('click', 'button.delete', function () {
         var name = $(this).data('name');
-        if (!confirm('确定删除 ' + name + ' 吗？引用它的任务将无法再提交。')) {
+        if (!confirm('确定删除 ' + name + ' 吗？正在被任务引用的 JAR 会被拒绝删除。')) {
             return;
         }
         remove($(this).data('path'));
     });
+
+    // 留空表示沿用原文件名，此时交由后端取名。
+    function validateUploadName(name) {
+        if (name === '') {
+            return null;
+        }
+        if (name.indexOf('/') >= 0 || name.indexOf('\\') >= 0) {
+            return '文件名不能包含路径分隔符';
+        }
+        if (!/\.jar$/i.test(name)) {
+            return '文件名必须以 .jar 结尾';
+        }
+        return null;
+    }
 
     function refreshUploadButton() {
         var files = $fileInput.get(0).files;

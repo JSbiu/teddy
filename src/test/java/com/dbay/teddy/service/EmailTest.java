@@ -23,8 +23,8 @@ public class EmailTest {
     @Test
     public void send(){
         assertNotNull(emailSender);
-//        emailSender.send("xinghailong@51tiangou.com","自定义主题1","自定义内容");
-//        emailSender.send("xinghailong@51tiangou.com","自定义主题2","自定义内容");
-//        emailSender.send("xinghailong@51tiangou.com","自定义主题3","自定义内容");
+//        emailSender.send("someone@example.com","自定义主题1","自定义内容");
+//        emailSender.send("someone@example.com","自定义主题2","自定义内容");
+//        emailSender.send("someone@example.com","自定义主题3","自定义内容");
     }
 }

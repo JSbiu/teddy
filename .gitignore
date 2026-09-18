@@ -13,3 +13,6 @@ target/
 /.classpath
 /.project
 /db/
+
+# Derby 运行期日志：与产品无关，且含运行机器的目录与用户名。
+derby.log

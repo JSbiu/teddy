@@ -7,14 +7,20 @@ import static org.junit.Assert.assertFalse;
 
 public class WebHookSenderTest {
 
-    private static final String KEY = "c1d6b3ea-7c27-4c40-bfaa-3c4ae3991174";
+    /**
+     * 明显的占位值，不是任何真实机器人地址。
+     *
+     * 这里要证明的是脱敏行为本身，把待脱敏的原值写进代码等于没有脱敏——
+     * 仓库是公开的，测试文件与源码一样会被人看到。
+     */
+    private static final String KEY = "11111111-2222-3333-4444-55555555abcd";
 
     @Test
     public void keepsHostAndPathButMasksTheKey() {
         String masked = WebHookSender.sanitize(
                 "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=" + KEY);
 
-        assertEquals("https://qyapi.weixin.qq.com/cgi-bin/webhook/send (key ****1174)", masked);
+        assertEquals("https://qyapi.weixin.qq.com/cgi-bin/webhook/send (key ****abcd)", masked);
         assertFalse(masked.contains(KEY));
     }
 
@@ -23,7 +29,7 @@ public class WebHookSenderTest {
         String masked = WebHookSender.sanitize(
                 "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=" + KEY + "&debug=1");
 
-        assertEquals("https://qyapi.weixin.qq.com/cgi-bin/webhook/send (key ****1174)", masked);
+        assertEquals("https://qyapi.weixin.qq.com/cgi-bin/webhook/send (key ****abcd)", masked);
     }
 
     @Test

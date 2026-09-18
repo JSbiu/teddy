@@ -18,7 +18,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 | `service/JobService.java` | Spark 提交、停止、重启与数据库记录编排 |
 | `service/YarnService.java` | 有超时和故障转移的 ResourceManager 查询 |
 | `manager/` | `JobStatePolicy`、`StateRefresher`、`RestartManager`、`AlertManager` 负责状态策略、刷新、重启及告警 |
-| `manager/JarResourceManager.java` | `lib.home` 下的 JAR 上传、删除和提交路径校验 |
+| `manager/JarResourceManager.java`、`controller/ResourceController.java`、`entity/JarResource.java` | `lib.home` 下的 JAR 列表、上传、删除与提交路径校验；被任务引用的 JAR 拒绝删除 |
 | `entity/Job.java`、`mapper/JobMapper.java` | 任务模型、`job` 表建表语句与数据访问 |
 | `entity/NotifyConfig.java`、`mapper/NotifyConfigMapper.java`、`service/NotifyConfigService.java` | 通知配置模型、`notify_config` 表访问与默认项约束 |
 

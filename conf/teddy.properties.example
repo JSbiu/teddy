@@ -9,8 +9,11 @@ spark.home=/path/to/spark/
 # default is 120 seconds when this setting is absent during an upgrade.
 spark.submit.app-id-timeout-seconds=120
 
-# Persistent directory containing uploaded Spark application JARs. Keep this
-# outside versioned Teddy release directories so upgrades do not move uploads.
+# Persistent directory holding Spark application JARs. Teddy manages only the
+# plain .jar files directly inside it: the resource page lists them and can
+# upload or delete them. The directory may also contain files maintained outside
+# Teddy. Keep it outside versioned release directories so upgrades never touch
+# it, and copy the JARs into the new directory before changing this value.
 lib.home=/var/lib/teddy/jars/
 
 # Combined stdout/stderr log written by submitted Spark processes.

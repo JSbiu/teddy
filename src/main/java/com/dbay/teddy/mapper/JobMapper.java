@@ -68,6 +68,17 @@ public interface JobMapper {
     List<Job> findAllWithAppId();
 
     /**
+     * 返回全部job，不做 appId 过滤。
+     *
+     * 用于校验 JAR 是否仍被任务引用：尚未提交或已停止的任务 appId 可能是 '-1'，
+     * 但它们同样引用着 JAR，不能被漏掉。
+     *
+     * @return List<Job>
+     */
+    @Select("select * from job")
+    List<Job> findAll();
+
+    /**
      * 返回所有job
      * @param appId applicationId
      * @return List<Job>

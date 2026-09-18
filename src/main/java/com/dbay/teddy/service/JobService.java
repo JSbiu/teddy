@@ -334,6 +334,10 @@ public class JobService {
         return jobMapper.findAllWithAppId();
     }
 
+    public List<Job> findAll() {
+        return jobMapper.findAll();
+    }
+
     public Job findOneWithAppId(String appId) {
         return jobMapper.findOneWithAppId(appId);
     }

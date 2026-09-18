@@ -1,5 +1,6 @@
 package com.dbay.teddy.manager;
 
+import com.dbay.teddy.entity.JarResource;
 import com.dbay.teddy.utils.TeddyConf;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -12,6 +13,10 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +25,12 @@ import java.util.stream.Stream;
 
 @Service
 public class JarResourceManager {
+    private static final long KILOBYTE = 1024L;
+    private static final long MEGABYTE = KILOBYTE * 1024L;
+    private static final long GIGABYTE = MEGABYTE * 1024L;
+    private static final DateTimeFormatter MODIFIED_TIME_FORMAT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT);
+
     private final Path libHome;
 
     public JarResourceManager() {
@@ -41,20 +52,60 @@ public class JarResourceManager {
         }
     }
 
-    public List<String> listJars() {
+    /** 当前管理的目录，供接口回传给页面，让使用者知道文件从哪里来。 */
+    public String getLibHome() {
+        return libHome.toString();
+    }
+
+    public List<JarResource> listJars() {
         try (Stream<Path> paths = Files.list(libHome)) {
             return paths
                     .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
                     .filter(this::isJar)
                     .sorted(Comparator.comparing(path -> path.getFileName().toString()))
-                    .map(path -> path.toAbsolutePath().normalize().toString())
+                    .map(this::toResource)
                     .collect(Collectors.toList());
         } catch (IOException e) {
             throw new IllegalStateException("Unable to list JAR resources", e);
         }
     }
 
-    public List<String> save(MultipartFile file) {
+    private JarResource toResource(Path path) {
+        Path absolute = path.toAbsolutePath().normalize();
+        try {
+            BasicFileAttributes attributes = Files.readAttributes(
+                    absolute, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            return new JarResource(
+                    path.getFileName().toString(),
+                    absolute.toString(),
+                    formatSize(attributes.size()),
+                    formatTime(attributes.lastModifiedTime().toMillis()));
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to read JAR attributes", e);
+        }
+    }
+
+    /** 1024 进制换算并保留一位小数，例如 {@code 12.3 MB}。 */
+    private static String formatSize(long bytes) {
+        if (bytes >= GIGABYTE) {
+            return String.format(Locale.ROOT, "%.1f GB", bytes / (double) GIGABYTE);
+        }
+        if (bytes >= MEGABYTE) {
+            return String.format(Locale.ROOT, "%.1f MB", bytes / (double) MEGABYTE);
+        }
+        if (bytes >= KILOBYTE) {
+            return String.format(Locale.ROOT, "%.1f KB", bytes / (double) KILOBYTE);
+        }
+        return bytes + " B";
+    }
+
+    /** 服务器本地时区，保证显示结果与浏览者所在时区无关。 */
+    private static String formatTime(long epochMillis) {
+        return MODIFIED_TIME_FORMAT.format(
+                Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()));
+    }
+
+    public List<JarResource> save(MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("A non-empty JAR file is required");
         }
@@ -103,7 +154,7 @@ public class JarResourceManager {
         return target;
     }
 
-    public List<String> delete(String jar) {
+    public List<JarResource> delete(String jar) {
         Path target = resolveRequestedJar(jar);
         if (Files.isSymbolicLink(target)) {
             throw new IllegalArgumentException("Symbolic-link targets are not allowed");

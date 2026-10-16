@@ -13,11 +13,12 @@ $(function () {
     var $fileInput = $('#inputfile');
     var $uploadBtn = $('#uploadFileBtn');
     var $uploadName = $('#uploadName');
+    var uploading = false;
 
     loadResources();
 
     $uploadBtn.prop('disabled', true);
-    $fileInput.on('change', function () {
+    $fileInput.on('change dropify.afterClear', function () {
         var files = $fileInput.get(0).files;
         if (files && files.length > 0) {
             // 换文件等于重新开始，目标名跟着新文件走。
@@ -27,6 +28,9 @@ $(function () {
     });
 
     $uploadBtn.on('click', function () {
+        if (uploading) {
+            return;
+        }
         var files = $fileInput.get(0).files;
         if (!files || files.length === 0) {
             showMessage('danger', '请先选择要上传的 JAR 文件');
@@ -66,12 +70,16 @@ $(function () {
 
     function refreshUploadButton() {
         var files = $fileInput.get(0).files;
-        $uploadBtn.prop('disabled', !files || files.length === 0);
+        $uploadBtn.prop('disabled', uploading || !files || files.length === 0);
     }
 
     function loadResources() {
         $.post("/jar/list", {}, function (result) {
-            renderList(result);
+            if (result && result.state === 'success') {
+                renderList(result);
+            } else {
+                showMessage('danger', errorText(result, '读取资源列表失败'));
+            }
         }).fail(function () {
             showMessage('danger', '读取资源列表失败');
         });
@@ -101,10 +109,11 @@ $(function () {
 
     // 几百 MB 的包要传几十秒，期间必须挡住重复提交。
     function setBusy(busy) {
-        $uploadBtn.prop('disabled', busy).text(busy ? '上传中…' : '提交');
-        if (!busy) {
-            refreshUploadButton();
-        }
+        uploading = busy;
+        $fileInput.prop('disabled', busy);
+        $uploadName.prop('disabled', busy);
+        $uploadBtn.text(busy ? '上传中…' : '提交');
+        refreshUploadButton();
     }
 
     function remove(path) {

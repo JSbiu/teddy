@@ -79,6 +79,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 | 范围 | 命令与前提 |
 | --- | --- |
 | 相关后端逻辑 | `mvn -DskipTests=false -Dtest=JobStatePolicyTest test`（按改动替换测试类） |
+| 资源页脚本回归 | `node tools/test-resource-page.cjs`（需本机 Node.js；模拟页面元素和请求，覆盖上传状态与列表错误提示） |
 | 全量隔离单元测试 | `mvn -DskipTests=false test` |
 | 编译检查 | `mvn -DskipTests compile`（不代表测试或发布包验证） |
 | 完整发布构建及产物自检 | `.\tools\build-release.ps1` |
@@ -90,7 +91,7 @@ Teddy 管理 Spark 作业的 JAR、提交、状态和生命周期，业务流处
 
 当前隔离测试覆盖会话鉴权、资源目录边界、YARN 查询、状态策略、通知配置和控制器行为。`TaskRepositoryTest`、`EmailTest`、`SchedulerThreadPoolTest` 保留类级 `@Ignore`：分别涉及未隔离上下文、邮件/配置依赖和不退出的线程示例；不能把跳过项算作通过。实际测试数量与结果以本次输出为准。
 
-静态页面变更需同时核对对应接口、鉴权和版本显示，在可用的本地环境操作受影响页面。使用真实配置启动 Teddy 会连接数据库并运行后台管理逻辑，应先准备隔离配置。
+资源页脚本回归不替代浏览器端到端验证。静态页面变更需同时核对对应接口、鉴权和版本显示，在可用的本地环境操作受影响页面。使用真实配置启动 Teddy 会连接数据库并运行后台管理逻辑，应先准备隔离配置。
 
 ## 更新边界
 

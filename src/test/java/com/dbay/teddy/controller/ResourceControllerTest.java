@@ -6,9 +6,14 @@ import com.dbay.teddy.entity.Job;
 import com.dbay.teddy.manager.JarResourceManager;
 import com.dbay.teddy.service.JobService;
 import com.dbay.teddy.utils.Response;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -32,6 +37,22 @@ public class ResourceControllerTest {
 
     private static final String LIB_HOME = "/var/lib/teddy/jars";
 
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
+
+    @Test
+    public void referencedJarPathAliasesCannotBeDeleted() throws Exception {
+        Path directory = temporaryFolder.newFolder("jars").toPath();
+        Path jar = Files.write(directory.resolve("DataLanding.jar"), new byte[]{1});
+        ResourceController controller = new ResourceController(new JarResourceManager(directory),
+                jobs(job("DataLanding", "DataLanding.jar")));
+
+        for (String suffix : Arrays.asList("", "/.", "/child/..")) {
+            assertEquals("error", controller.delete(jar.toAbsolutePath() + suffix).getState());
+            assertTrue(Files.exists(jar));
+        }
+    }
+
     @Test
     public void referencedJarsCannotBeDeleted() {
         JarResourceManager resources = mock(JarResourceManager.class);
@@ -47,7 +68,8 @@ public class ResourceControllerTest {
 
     @Test
     public void referenceMatchesWhetherStoredAsNameOrAbsolutePath() {
-        for (String referenced : Arrays.asList("DataLanding.jar", LIB_HOME + "/DataLanding.jar")) {
+        for (String referenced : Arrays.asList("DataLanding.jar", LIB_HOME + "/DataLanding.jar",
+                LIB_HOME + "/child/../DataLanding.jar", LIB_HOME + "/DataLanding.jar/.")) {
             JarResourceManager resources = mock(JarResourceManager.class);
             ResourceController controller = new ResourceController(
                     resources, jobs(job("DataLanding", referenced)));
@@ -126,6 +148,29 @@ public class ResourceControllerTest {
 
         assertEquals("success", response.getState());
         assertFalse(((Map<?, ?>) response.getData()).containsKey("notice"));
+    }
+
+    @Test
+    public void referenceLookupFailureStillReportsCompletedReplacement() throws Exception {
+        Path directory = temporaryFolder.newFolder("overwrites").toPath();
+        Path jar = directory.resolve("DataLanding.jar");
+        for (RuntimeException failure : Arrays.asList(
+                new DataAccessResourceFailureException("database unavailable"),
+                new IllegalStateException("reference lookup failed"))) {
+            Files.write(jar, new byte[]{0, 0});
+            JobService jobs = mock(JobService.class);
+            when(jobs.findAll()).thenThrow(failure);
+            ResourceController controller = new ResourceController(new JarResourceManager(directory), jobs);
+
+            Response response = controller.upload(file(), null);
+
+            assertEquals("success", response.getState());
+            assertEquals(1L, Files.size(jar));
+            String notice = String.valueOf(((Map<?, ?>) response.getData()).get("notice"));
+            assertTrue(notice.contains("已覆盖同名文件 DataLanding.jar"));
+            assertTrue(notice.contains("未能查询任务引用"));
+            assertFalse(notice.contains("没有任务引用"));
+        }
     }
 
     private static JobService jobs(Job... jobs) {

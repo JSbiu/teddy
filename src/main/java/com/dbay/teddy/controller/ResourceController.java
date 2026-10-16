@@ -6,6 +6,9 @@ import com.dbay.teddy.entity.Job;
 import com.dbay.teddy.manager.JarResourceManager;
 import com.dbay.teddy.service.JobService;
 import com.dbay.teddy.utils.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -26,6 +29,8 @@ import java.util.function.Supplier;
 @RestController
 @RequestMapping("jar")
 public class ResourceController {
+
+    private static final Logger logger = LoggerFactory.getLogger(ResourceController.class);
 
     private final JarResourceManager resourceManager;
     private final JobService jobService;
@@ -98,7 +103,15 @@ public class ResourceController {
                 .append("（").append(overwritten.getSizeText())
                 .append(" → ").append(sizeTextOf(result.getJars(), overwritten.getName()))
                 .append("）。");
-        List<String> referencedBy = referencedBy(overwritten.getName());
+        List<String> referencedBy;
+        try {
+            referencedBy = referencedBy(overwritten.getName());
+        } catch (DataAccessException | IllegalArgumentException | IllegalStateException e) {
+            // 文件已经替换成功，引用查询失败不能把它报告成上传失败。
+            logger.warn("Unable to query task references after JAR replacement ({})",
+                    e.getClass().getSimpleName());
+            return notice.append("未能查询任务引用，请在任务配置中确认新包兼容性。").toString();
+        }
         if (referencedBy.isEmpty()) {
             notice.append("没有任务引用它。");
         } else {
@@ -155,7 +168,8 @@ public class ResourceController {
         if (value == null || value.trim().isEmpty()) {
             return null;
         }
-        Path fileName = Paths.get(value.trim()).getFileName();
+        // 与 JarResourceManager 的实际删除、提交路径保持相同的规范化规则。
+        Path fileName = Paths.get(value.trim()).normalize().getFileName();
         return fileName == null ? null : fileName.toString();
     }
 
